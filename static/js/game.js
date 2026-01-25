@@ -50,16 +50,7 @@ async function loadRandomPlayer() {
 
   if (data.error) {
     playerNameEl.textContent = "Error";
-    seasonsBody.innerHTML = `<tr><td colspan="8" class="text-center text-red-600 p-2">${data.error}</td></tr>`;row.innerHTML = `
-  <td class="border border-gray-700 p-2">${season.season}</td>
-  <td class="border border-gray-700 p-2">${season.tm}</td>
-  <td class="border border-gray-700 p-2">${season.g}</td>
-  <td class="border border-gray-700 p-2">${season.gs}</td>
-  <td class="border border-gray-700 p-2">${season.mp_per_game}</td>
-  <td class="border border-gray-700 p-2">${season.pts_per_game}</td>
-  <td class="border border-gray-700 p-2">${season.ast_per_game}</td>
-  <td class="border border-gray-700 p-2">${season.trb_per_game}</td>
-`;
+    seasonsBody.innerHTML = `<tr><td colspan="8" class="text-center text-red-600 p-2">${data.error}</td></tr>`;
     return;
   }
 
