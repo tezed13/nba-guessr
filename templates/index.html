@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="/static/css/style.css">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBA Guessr</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-8">
+  <div class="bg-white p-6 rounded-2xl shadow-md w-full max-w-lg">
+    <h1 class="text-3xl font-bold mb-6 text-center text-blue-700">NBA Guessr</h1>
+
+    <form id="playerForm" class="space-y-4">
+      <div>
+        <label class="block font-semibold mb-1">Select Seasons</label>
+        <div class="flex gap-2">
+          <input id="startSeason" type="number" min="1947" max="2025" value="2000"
+                 class="w-1/2 border border-gray-300 rounded-md p-2">
+          <input id="endSeason" type="number" min="1947" max="2025" value="2025"
+                 class="w-1/2 border border-gray-300 rounded-md p-2">
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">Player Types</label>
+        <div class="flex flex-wrap gap-4">
+          <label><input type="checkbox" value="starters" checked> Starters</label>
+          <label><input type="checkbox" value="bench"> Bench</label>
+          <label><input type="checkbox" value="endbench"> End of Bench</label>
+        </div>
+      </div>
+
+      <button type="button" id="getPlayer"
+              class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full">
+        Get Random Player
+      </button>
+    </form>
+
+    <!-- Player stats -->
+    <div id="playerStats" class="mt-6 hidden">
+      <h2 class="text-2xl font-semibold mb-2 text-center">Guess This Player!</h2>
+
+      <!-- Player name reveal -->
+      <h3 id="playerName" class="text-xl font-bold text-center mb-2 text-gray-700">???</h3>
+
+      <!-- Streak -->
+      <p class="mb-2 font-semibold text-center">Current Streak: <span id="streak">0</span></p>
+
+      <table class="w-full table-auto border-collapse border border-gray-300">
+        <thead>
+          <tr class="bg-gray-200">
+            <th class="border border-gray-300 p-2">Season</th>
+            <th class="border border-gray-300 p-2">Team</th>
+            <th class="border border-gray-300 p-2">Games</th>
+            <th class="border border-gray-300 p-2">GS</th>
+            <th class="border border-gray-300 p-2">Minutes</th>
+            <th class="border border-gray-300 p-2">PTS</th>
+            <th class="border border-gray-300 p-2">AST</th>
+            <th class="border border-gray-300 p-2">TRB</th>
+          </tr>
+        </thead>
+        <tbody id="seasonsBody"></tbody>
+      </table>
+
+      <!-- Guess input -->
+      <div class="mt-4">
+        <label class="block font-semibold mb-1">Guess the Player</label>
+        <input type="text" id="guessInput" placeholder="Start typing name..." 
+               class="w-full border border-gray-300 rounded-md p-2" autocomplete="off">
+        <div id="suggestions" class="border border-gray-300 rounded-md mt-1 bg-white max-h-32 overflow-y-auto hidden"></div>
+
+        <div class="flex gap-2 mt-2">
+          <button type="button" id="submitGuess"
+                  class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex-1">
+            Submit Guess
+          </button>
+          <button type="button" id="giveUp"
+                  class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex-1">
+            Give Up
+          </button>
+        </div>
+
+        <p id="resultText" class="mt-3 font-semibold text-center text-lg"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let playerNames = [];
+  let currentPlayerName = "";
+  let streak = 0;
+
+  // Fetch all players for autocomplete
+  fetch("/all_players")
+    .then(res => res.json())
+    .then(data => playerNames = data)
+    .catch(err => console.error("Error loading player list:", err));
+
+  document.getElementById("getPlayer").addEventListener("click", () => {
+  const start = document.getElementById("startSeason").value;
+  const end = document.getElementById("endSeason").value;
+  const types = Array.from(document.querySelectorAll("input[type=checkbox]:checked"))
+    .map(cb => cb.value)
+    .join(",");
+
+  window.location.href = `/guess?start_season=${start}&end_season=${end}&types=${types}`;
+});
+
+
+  // --- Guess submission and streak tracking ---
+  document.getElementById("submitGuess").addEventListener("click", () => {
+    const guess = document.getElementById("guessInput").value.trim().toLowerCase();
+    const resultText = document.getElementById("resultText");
+    const playerNameEl = document.getElementById("playerName");
+
+    if (!currentPlayerName) return;
+
+    if (guess && currentPlayerName.toLowerCase() === guess) {
+      streak++;
+      resultText.textContent = `✅ Correct! Streak: ${streak}`;
+      playerNameEl.textContent = currentPlayerName;
+    } else {
+      streak = 0;
+      resultText.textContent = `❌ Incorrect! The player was ${currentPlayerName}. Streak reset.`;
+      playerNameEl.textContent = currentPlayerName;
+    }
+
+    document.getElementById("streak").textContent = streak;
+  });
+
+  // --- Give Up button ---
+  document.getElementById("giveUp").addEventListener("click", () => {
+    const playerNameEl = document.getElementById("playerName");
+    const resultText = document.getElementById("resultText");
+
+    if (currentPlayerName) {
+      playerNameEl.textContent = currentPlayerName;
+      resultText.textContent = `😞 You gave up! The player was ${currentPlayerName}. Streak reset.`;
+      streak = 0;
+      document.getElementById("streak").textContent = streak;
+    }
+  });
+
+  // --- Autocomplete logic with prefix priority ---
+  const guessInput = document.getElementById("guessInput");
+  const suggestionsDiv = document.getElementById("suggestions");
+
+  guessInput.addEventListener("input", () => {
+    const query = guessInput.value.toLowerCase().trim();
+    if (query.length < 3) {
+      suggestionsDiv.classList.add("hidden");
+      return;
+    }
+
+    // Rank matches: starts-with matches first, then contains matches
+    const startsWithMatches = playerNames.filter(name => {
+      const parts = name.toLowerCase().split(" ");
+      return parts.some(part => part.startsWith(query));
+    });
+
+    const containsMatches = playerNames.filter(name => {
+      const lower = name.toLowerCase();
+      const parts = lower.split(" ");
+      return !parts.some(part => part.startsWith(query)) && lower.includes(query);
+    });
+
+    const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
+
+    if (matches.length === 0) {
+      suggestionsDiv.classList.add("hidden");
+      return;
+    }
+
+    suggestionsDiv.innerHTML = matches
+      .map(name => {
+        const regex = new RegExp(`(${query})`, "ig");
+        const highlighted = name.replace(regex, "<strong>$1</strong>");
+        return `<div class="p-1 hover:bg-gray-200 cursor-pointer">${highlighted}</div>`;
+      })
+      .join("");
+
+    suggestionsDiv.classList.remove("hidden");
+  });
+
+  suggestionsDiv.addEventListener("click", (e) => {
+  const item = e.target.closest("div");
+  if (!item) return;
+
+  // Use dataset to get full, clean player name
+  const selectedName = item.dataset.name;
+  guessInput.value = selectedName;
+  suggestionsDiv.classList.add("hidden");
+});
+
+
+  guessInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const firstSuggestion = suggestionsDiv.querySelector("div");
+      if (firstSuggestion) {
+        guessInput.value = firstSuggestion.textContent.trim();
+        suggestionsDiv.classList.add("hidden");
+      }
+    }
+  });
+  </script>
+<script src="/static/game.js"></script>
+</body>
+</html>
