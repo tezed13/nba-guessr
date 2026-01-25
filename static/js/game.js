@@ -104,7 +104,7 @@ guessInput.addEventListener("input", () => {
     .map(name => {
       const regex = new RegExp(`(${escapeRegExp(query)})`, "ig");
       const highlighted = name.replace(regex, "<strong>$1</strong>");
-      return `<div data-name="${escapeHtmlAttr(name)}" class="p-1 hover:bg-gray-200 cursor-pointer">${highlighted}</div>`;
+      return `<div data-name="${escapeHtmlAttr(name)}" class="p-1 hover:bg-gray-700 cursor-pointer text-white">${highlighted}</div>`;
     })
     .join("");
 
