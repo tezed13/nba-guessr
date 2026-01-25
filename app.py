@@ -13,7 +13,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 # Load CSV
-csv_path = BASE_DIR / "data" / "Player Per Game.csv"
+csv_path = BASE_DIR / "Data" / "Player Per Game.csv"
 try:
     stats_df = pd.read_csv(csv_path)
     stats_df["season"] = stats_df["season"].astype(int)
