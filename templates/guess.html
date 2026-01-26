@@ -1,69 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Guessr - Game</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <title>NBA Guessr - Arcade Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #000; color: #fff; }
+        .stats-table tr:nth-child(even) { background-color: #0a0a0a; }
+        .stats-table tr:hover { background-color: #111; }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-8">
-  <nav class="w-full max-w-2xl mb-4">
-    <a href="/" class="text-blue-600 hover:underline font-semibold">← Back to Menu</a>
-  </nav>
-
-  <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-2xl border-t-4 border-blue-600">
-    <h1 class="text-3xl font-bold mb-6 text-center text-blue-700">NBA Guessr</h1>
-
+<body class="min-h-screen p-4 flex flex-col items-center">
+    
     <input type="hidden" id="startSeason" value="{{ start_season }}">
     <input type="hidden" id="endSeason" value="{{ end_season }}">
     <input type="hidden" id="types" value="{{ types }}">
 
-    <div id="playerStats" class="mt-4">
-      <h2 class="text-xl font-semibold mb-2 text-center text-gray-800">Guess This Player!</h2>
-      <h3 id="playerName" class="text-2xl font-black text-center mb-4 text-gray-300 tracking-widest uppercase">??????</h3>
+    <nav class="w-full max-w-5xl mb-6">
+        <a href="/" class="text-gray-500 hover:text-white font-bold transition">← BACK TO MENU</a>
+    </nav>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
-    <thead class="bg-gray-800 text-gray-400 uppercase text-[10px]">
-        <tr>
-            <th class="p-2">Year</th>
-            <th class="p-2">Tm</th>
-            <th class="p-2">G</th>
-            <th class="p-2">GS</th>
-            <th class="p-2">MP</th>
-            <th class="p-2 text-yellow-500">PTS</th>
-            <th class="p-2">AST</th>
-            <th class="p-2">TRB</th>
-        </tr>
-    </thead>
-    <tbody id="seasonsBody" class="text-white">
-        </tbody>
-</table>
-      </div>
-    </div>
-
-    <div class="mt-6 border-t pt-6">
-      <div class="relative">
-        <input type="text" id="guessInput" placeholder="Start typing player name..."
-               class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-blue-500 outline-none transition-all" autocomplete="off">
-        <div id="suggestions" class="absolute z-10 w-full border border-gray-300 rounded-md mt-1 bg-white max-h-48 overflow-y-auto hidden shadow-xl"></div>
-      </div>
-
-      <div class="flex gap-2 mt-4">
-        <button id="submitGuess" class="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-bold flex-1">SUBMIT</button>
-        <button id="giveUp" class="bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 font-bold flex-1">GIVE UP</button>
-        <button id="nextRound" class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-bold flex-1" style="display:none;">NEXT ROUND</button>
-      </div>
-
-      <div id="resultText" class="mt-4 font-bold text-center text-xl"></div>
-      <div class="mt-4 flex justify-center">
-        <div class="bg-gray-100 px-6 py-2 rounded-full font-bold text-gray-600">
-          🔥 Streak: <span id="streak" class="text-blue-600">0</span>
+    <div class="w-full max-w-5xl bg-[#0a0a0a] border border-gray-800 rounded-[2rem] p-8 shadow-2xl">
+        
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-black italic text-blue-500 uppercase">NBA GUESSR</h1>
+                <p class="text-gray-500 text-xs font-bold tracking-widest mt-1">SEASON RANGE: {{ start_season }} - {{ end_season }}</p>
+            </div>
+            <div class="bg-black border border-gray-800 px-6 py-2 rounded-full">
+                <span class="text-gray-500 font-bold text-xs uppercase">Streak:</span>
+                <span id="streakVal" class="text-blue-500 font-black text-xl ml-2">0</span>
+            </div>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <script src="/static/game.js"></script>
+        <div class="overflow-x-auto mb-8 border border-gray-800 rounded-xl">
+            <table class="w-full text-left text-sm stats-table">
+                <thead class="bg-gray-900 text-gray-400 uppercase text-[10px] font-black tracking-tighter">
+                    <tr>
+                        <th class="p-4">Season</th>
+                        <th class="p-4">Tm</th>
+                        <th class="p-4">G</th>
+                        <th class="p-4">GS</th>
+                        <th class="p-4">MP</th>
+                        <th class="p-4 text-blue-400">PTS</th>
+                        <th class="p-4">AST</th>
+                        <th class="p-4">TRB</th>
+                    </tr>
+                </thead>
+                <tbody id="seasonsBody" class="font-medium text-gray-300">
+                    </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-col items-center border-t border-gray-800 pt-8">
+            <h2 id="playerNameDisplay" class="text-3xl font-black mb-6 text-gray-700 tracking-widest uppercase">??????</h2>
+            
+            <div class="w-full max-w-md relative">
+                <input type="text" id="guessInput" placeholder="TYPE PLAYER NAME..." 
+                       class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-blue-500 outline-none transition-all text-lg font-bold uppercase">
+                <div id="suggestions" class="absolute z-20 w-full bg-[#111] border border-gray-800 rounded-xl mt-1 max-h-48 overflow-y-auto hidden"></div>
+            </div>
+
+            <div id="resultMsg" class="mt-4 h-8 font-black uppercase italic"></div>
+
+            <div class="flex gap-4 mt-6 w-full max-w-md">
+                <button id="submitBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all shadow-lg uppercase tracking-widest">Submit Guess</button>
+                <button id="nextBtn" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-4 rounded-xl transition-all hidden uppercase tracking-widest">Next Player</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPlayerName = "";
+        let streak = 0;
+        let allPlayers = [];
+
+        // Fetch autocomplete list
+        fetch('/all_players').then(r => r.json()).then(data => allPlayers = data);
+
+        async function loadPlayer() {
+            const start = document.getElementById('startSeason').value;
+            const end = document.getElementById('endSeason').value;
+            const types = document.getElementById('types').value;
+
+            // Reset UI
+            document.getElementById('seasonsBody').innerHTML = "<tr><td colspan='8' class='p-10 text-center text-gray-600 animate-pulse'>LOADING STATS...</td></tr>";
+            document.getElementById('playerNameDisplay').textContent = "??????";
+            document.getElementById('playerNameDisplay').className = "text-3xl font-black mb-6 text-gray-700 tracking-widest uppercase";
+            document.getElementById('resultMsg').textContent = "";
+            document.getElementById('guessInput').value = "";
+            document.getElementById('submitBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
+
+            try {
+                const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+                const data = await res.json();
+
+                if (data.error) {
+                    alert("No players found. Try widening your filters!");
+                    return;
+                }
+
+                currentPlayerName = data.player_name;
+                const tbody = document.getElementById('seasonsBody');
+                tbody.innerHTML = "";
+
+                data.seasons.forEach(s => {
+                    const row = `
+                        <tr class="border-b border-gray-900">
+                            <td class="p-4 font-bold text-gray-500">${s.season}</td>
+                            <td class="p-4">${s.tm}</td>
+                            <td class="p-4">${s.g}</td>
+                            <td class="p-4">${s.gs}</td>
+                            <td class="p-4">${s.mp_per_game}</td>
+                            <td class="p-4 text-blue-400 font-bold">${s.pts_per_game}</td>
+                            <td class="p-4">${s.ast_per_game}</td>
+                            <td class="p-4">${s.trb_per_game}</td>
+                        </tr>
+                    `;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+
+            } catch (err) {
+                console.error("Error loading player:", err);
+            }
+        }
+
+        // Guess Logic
+        document.getElementById('submitBtn').onclick = () => {
+            const guess = document.getElementById('guessInput').value.trim().toLowerCase();
+            const display = document.getElementById('playerNameDisplay');
+            const msg = document.getElementById('resultMsg');
+
+            if (guess === currentPlayerName.toLowerCase()) {
+                streak++;
+                msg.textContent = "✅ SWISH! NOTHING BUT NET";
+                msg.className = "mt-4 h-8 font-black uppercase italic text-green-500";
+                display.className = "text-3xl font-black mb-6 text-green-500 uppercase tracking-normal";
+            } else {
+                streak = 0;
+                msg.textContent = "❌ AIRBALL! CLANK.";
+                msg.className = "mt-4 h-8 font-black uppercase italic text-red-500";
+                display.className = "text-3xl font-black mb-6 text-red-500 uppercase tracking-normal";
+            }
+
+            display.textContent = currentPlayerName;
+            document.getElementById('streakVal').textContent = streak;
+            document.getElementById('submitBtn').classList.add('hidden');
+            document.getElementById('nextBtn').classList.remove('hidden');
+        };
+
+        // Autocomplete
+        const input = document.getElementById('guessInput');
+        const suggs = document.getElementById('suggestions');
+
+        input.oninput = () => {
+            const val = input.value.toLowerCase();
+            if (val.length < 2) { suggs.classList.add('hidden'); return; }
+            const matches = allPlayers.filter(p => p.toLowerCase().includes(val)).slice(0, 6);
+            if (matches.length === 0) { suggs.classList.add('hidden'); return; }
+            
+            suggs.innerHTML = matches.map(m => `
+                <div class="p-3 hover:bg-blue-600 cursor-pointer font-bold border-b border-gray-800" 
+                     onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>
+            `).join('');
+            suggs.classList.remove('hidden');
+        };
+
+        function selectName(name) {
+            input.value = name;
+            suggs.classList.add('hidden');
+        }
+
+        document.getElementById('nextBtn').onclick = loadPlayer;
+        window.onload = loadPlayer;
+    </script>
 </body>
 </html>
