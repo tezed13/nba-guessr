@@ -130,7 +130,13 @@ async def spin_data():
         "trb_per_game": "Rebounds Per Game",
         "ast_per_game": "Assists Per Game",
         "stl_per_game": "Steals Per Game",
-        "blk_per_game": "Blocks Per Game"
+        "blk_per_game": "Blocks Per Game",
+        "tov_per_game": "Turnovers Per Game",
+        "pf_per_game": "Fouls Per Game",
+        "fta_per_game": "Free Attempts Per Game",
+        "x3pa_per_game": "Three Pointers Attempted Per Game",
+        "fga_per_game": "Shots Attempted Per Game",
+        "mp_per_game": "Minutes Per Game"
     }
     chosen_stat_key = random.choice(list(stat_map.keys()))
     
