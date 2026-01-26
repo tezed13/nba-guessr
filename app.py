@@ -121,19 +121,20 @@ async def spin_data():
     if stats_df.empty:
         return JSONResponse({"error": "CSV not loaded"}, status_code=500)
 
-    # 1. Apply your basic criteria
+    # Filter by your criteria
     qualified = stats_df[(stats_df["g"] > 45) & (stats_df["mp_per_game"] > 12)].copy()
     
-    # Add Conference column for filtering
+    # Map Conference
     qualified['conference'] = qualified['tm'].map(TEAM_TO_CONF).fillna('Other')
     qualified = qualified[qualified['conference'] != 'Other']
 
-    # 2. Pick a random category and a random target player to build the "clue"
+    # Pick a random category
     selected_category = random.choice(CATEGORIES)
+    
+    # Pick a random target row from the whole dataset
     target_row = qualified.sample(1).iloc[0]
     
-    # 3. Find the "Winner" (Highest in that category for that Year/Pos/Conf)
-    # This makes the game "Find the leader of [Category] in [Year] at [Position] in [Conf]"
+    # Find the leader in that category for that Year/Pos/Conf
     subset = qualified[
         (qualified['season'] == target_row['season']) & 
         (qualified['pos'] == target_row['pos']) & 
@@ -141,10 +142,6 @@ async def spin_data():
     ]
     
     winner_row = subset.loc[subset[selected_category].idxmax()]
-
-    # 4. Pick 3 "Decoy" players from the same season/conf to make it hard
-    decoys = qualified[qualified['season'] == winner_row['season']].sample(3)
-    choices = pd.concat([pd.DataFrame([winner_row]), decoys]).sample(frac=1)
 
     return {
         "clues": {
@@ -154,8 +151,7 @@ async def spin_data():
             "pos": winner_row['pos'],
             "conf": winner_row['conference']
         },
-        "winner": winner_row["player"],
-        "choices": choices["player"].tolist()
+        "winner": winner_row["player"]
     }
 
 @app.get("/spin", response_class=HTMLResponse)
