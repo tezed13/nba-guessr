@@ -46,37 +46,55 @@ async def all_players():
         return JSONResponse({"error": "CSV data not loaded"}, status_code=500)
     return sorted(stats_df["player"].dropna().unique().tolist())
 
-@app.get("/random_player")
-async def random_player(start_season: int, end_season: int, types: str):
-    # Convert 'starters,bench' into a list ['starters', 'bench']
-    type_list = types.split(",")
-    
-    # Filter by Season Range
-    mask = (stats_df["season"] >= start_season) & (stats_df["season"] <= end_season)
-    
-    # Filter by Difficulty (GS = Games Started)
-    # Example logic: Starters > 50 GS, Bench 10-50 GS, Role < 10 GS
-    diff_mask = pd.Series(False, index=stats_df.index)
-    if "starters" in type_list:
-        diff_mask |= (stats_df["gs"] >= 50)
-    if "bench" in type_list:
-        diff_mask |= (stats_df["gs"] >= 10) & (stats_df["gs"] < 50)
-    if "endbench" in type_list:
-        diff_mask |= (stats_df["gs"] < 10)
+@app.route("/random_player")
+def random_player():
+    try:
+        start_year = int(request.args.get('start_season', 1950))
+        end_year = int(request.args.get('end_season', 2025))
+        difficulty_types = request.args.get('types', 'starters').split(',')
 
-    filtered_df = stats_df[mask & diff_mask]
+        # 1. Force columns to lowercase to avoid "GS" vs "gs" errors
+        stats_df.columns = [c.lower() for c in stats_df.columns]
 
-    if filtered_df.empty:
-        return {"error": "No players found for this criteria"}
+        # 2. Filter by Year Range
+        mask = (stats_df['season'] >= start_year) & (stats_df['season'] <= end_year)
+        temp_df = stats_df[mask]
 
-    # Pick a random player from the filtered list
-    random_player_name = random.choice(filtered_df["player"].unique())
-    player_data = stats_df[stats_df["player"] == random_player_name].sort_values("season")
+        # 3. Apply Difficulty Filters
+        diff_mask = pd.Series(False, index=temp_df.index)
+        
+        if 'starters' in difficulty_types:
+            # Lower the threshold to 30 or 40 to be safe for shorter seasons
+            diff_mask |= (temp_df['gs'] >= 40) 
+        if 'bench' in difficulty_types:
+            diff_mask |= (temp_df['gs'] >= 5) & (temp_df['gs'] < 40)
+        if 'endbench' in difficulty_types:
+            diff_mask |= (temp_df['gs'] < 5)
 
-    return {
-        "player_name": random_player_name,
-        "seasons": player_data.to_dict(orient="records")
-    }
+        filtered_df = temp_df[diff_mask]
+
+        # 4. FALLBACK: If filters are too strict, just give any player from those years
+        if filtered_df.empty:
+            print("Filters too strict, falling back to year-only filter")
+            filtered_df = temp_df
+
+        if filtered_df.empty:
+            return jsonify({"error": "No players found in this year range"}), 404
+
+        # Pick random player
+        random_name = random.choice(filtered_df['player'].unique())
+        
+        # Get all career years for that player to show in the table
+        player_career = stats_df[stats_df['player'] == random_name].sort_values('season', ascending=False)
+        
+        return jsonify({
+            "player_name": random_name,
+            "seasons": player_career.to_dict(orient='records')
+        })
+
+    except Exception as e:
+        print(f"Error in random_player: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # List of categories you provided
