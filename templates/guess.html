@@ -1,69 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="stylesheet" href="/static/css/style.css">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBA Guessr - Game</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-8">
-  <div class="bg-white p-6 rounded-2xl shadow-md w-full max-w-2xl">
-    <h1 class="text-3xl font-bold mb-6 text-center text-blue-700">Guess the Player</h1>
-    
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-8">
 
-    <!-- Hidden params for fetching next rounds -->
+  <nav class="w-full max-w-2xl mb-4">
+    <a href="/" class="text-blue-600 hover:underline font-semibold">← Back to Menu</a>
+  </nav>
+
+  <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-2xl border-t-4 border-blue-600">
+    <h1 class="text-3xl font-bold mb-6 text-center text-blue-700">NBA Guessr</h1>
+
     <input type="hidden" id="startSeason" value="{{ start_season }}">
     <input type="hidden" id="endSeason" value="{{ end_season }}">
-    <input type="hidden" id="types" value="{{ types|join(',') }}">
+    <input type="hidden" id="types" value="{{ types }}">
 
-    <!-- Player Stats Table -->
     <div id="playerStats" class="mt-4">
       <h2 class="text-xl font-semibold mb-2 text-center text-gray-800">Guess This Player!</h2>
-      <h3 id="playerName" class="text-lg font-bold text-center mb-2 text-gray-700">???</h3>
+      <h3 id="playerName" class="text-2xl font-black text-center mb-4 text-gray-300 tracking-widest uppercase">??????</h3>
 
-      <table class="w-full table-auto border-collapse border border-gray-300">
-        <thead>
-          <tr class="bg-gray-200">
-            <th class="border p-2">Season</th>
-            <th class="border p-2">Team</th>
-            <th class="border p-2">GP</th>
-            <th class="border p-2">GS</th>
-            <th class="border p-2">MP</th>
-            <th class="border p-2">PPG</th>
-            <th class="border p-2">APG</th>
-            <th class="border p-2">RPG</th>
-          </tr>
-        </thead>
-        <tbody id="seasonsBody"></tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full table-auto border-collapse border border-gray-200 text-sm">
+          <thead>
+            <tr class="bg-gray-100 text-gray-600 uppercase text-xs">
+              <th class="border p-2">Season</th>
+              <th class="border p-2">Team</th>
+              <th class="border p-2">GP</th>
+              <th class="border p-2">GS</th>
+              <th class="border p-2">MP</th>  
+              <th class="border p-2">PPG</th>
+              <th class="border p-2">APG</th>
+              <th class="border p-2">RPG</th>
+            </tr>
+          </thead>
+          <tbody id="seasonsBody" class="text-center font-mono">
+             </tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- Guess Input -->
-    <div class="mt-4">
-      <input type="text" id="guessInput" placeholder="Start typing player name..."
-             class="w-full border border-gray-300 rounded-md p-2 mb-2" autocomplete="off">
-      <div id="suggestions" class="border border-gray-300 rounded-md mt-1 bg-white max-h-32 overflow-y-auto hidden"></div>
+    <div class="mt-6 border-t pt-6">
+      <div class="relative">
+        <input type="text" id="guessInput" placeholder="Start typing player name..."
+               class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-blue-500 outline-none transition-all" autocomplete="off">
+        
+        <div id="suggestions" class="absolute z-10 w-full border border-gray-300 rounded-md mt-1 bg-white max-h-48 overflow-y-auto hidden shadow-xl"></div>
+      </div>
 
-      <div class="flex gap-2 mt-2">
-        <button id="submitGuess" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex-1">
-          Submit Guess
+      <div class="flex gap-2 mt-4">
+        <button id="submitGuess" class="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-bold transition-all flex-1 shadow-md">
+          SUBMIT
         </button>
-        <button id="giveUp" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex-1">
-          Give Up
+        <button id="giveUp" class="bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 font-bold transition-all flex-1 shadow-md">
+          GIVE UP
         </button>
-        <button id="nextRound" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex-1">
-          Next Round
+        <button id="nextRound" class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-bold transition-all flex-1 shadow-md" style="display:none;">
+          NEXT
         </button>
       </div>
 
-      <p id="resultText" class="mt-3 font-semibold text-center text-lg"></p>
-      <p class="mt-2 text-center">Streak: <span id="streak">0</span></p>
+      <div id="resultText" class="mt-4 font-bold text-center text-xl min-h-[1.5em]"></div>
+      
+      <div class="mt-4 flex justify-center">
+        <div class="bg-gray-100 px-6 py-2 rounded-full font-bold text-gray-600">
+          🔥 Streak: <span id="streak" class="text-blue-600">0</span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Modular JS -->
-  <script src="/static/js/game.js"></script>
+  <script src="/static/game.js"></script>
+  <script>
+    // This triggers the first round immediately when the page loads
+    window.onload = () => {
+        if (typeof loadRandomPlayer === "function") {
+            loadRandomPlayer();
+        }
+    };
+  </script>
 </body>
 </html>
