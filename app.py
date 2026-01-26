@@ -93,3 +93,71 @@ async def random_player(
         })
 
     return {"player_name": player_name, "seasons": seasons_list}
+
+
+
+# List of categories you provided
+CATEGORIES = [
+    "mp_per_game", "fg_per_game", "fga_per_game", "fg_percent", 
+    "x3p_per_game", "x3pa_per_game", "x3p_percent", "x2p_per_game", 
+    "x2pa_per_game", "x2p_percent", "e_fg_percent", "ft_per_game", 
+    "fta_per_game", "ft_percent", "orb_per_game", "drb_per_game", 
+    "trb_per_game", "ast_per_game", "stl_per_game", "blk_per_game", 
+    "tov_per_game", "pf_per_game", "pts_per_game"
+]
+
+# Mapping teams to Conferences
+TEAM_TO_CONF = {
+    'ATL': 'Eastern', 'BOS': 'Eastern', 'BKN': 'Eastern', 'NJN': 'Eastern', 'CHA': 'Eastern', 'CHI': 'Eastern', 
+    'CLE': 'Eastern', 'DET': 'Eastern', 'IND': 'Eastern', 'MIA': 'Eastern', 'MIL': 'Eastern', 'NYK': 'Eastern', 
+    'ORL': 'Eastern', 'PHI': 'Eastern', 'TOR': 'Eastern', 'WAS': 'Eastern', 'WSB': 'Eastern',
+    'DAL': 'Western', 'DEN': 'Western', 'GSW': 'Western', 'HOU': 'Western', 'LAC': 'Western', 'LAL': 'Western', 
+    'MEM': 'Western', 'MIN': 'Western', 'NOP': 'Western', 'NOH': 'Western', 'OKC': 'Western', 'SEA': 'Western', 
+    'PHO': 'Western', 'PHX': 'Western', 'POR': 'Western', 'SAC': 'Western', 'SAS': 'Western', 'UTA': 'Western',
+}
+
+@app.get("/spin_data")
+async def spin_data():
+    if stats_df.empty:
+        return JSONResponse({"error": "CSV not loaded"}, status_code=500)
+
+    # 1. Apply your basic criteria
+    qualified = stats_df[(stats_df["g"] > 45) & (stats_df["mp_per_game"] > 12)].copy()
+    
+    # Add Conference column for filtering
+    qualified['conference'] = qualified['tm'].map(TEAM_TO_CONF).fillna('Other')
+    qualified = qualified[qualified['conference'] != 'Other']
+
+    # 2. Pick a random category and a random target player to build the "clue"
+    selected_category = random.choice(CATEGORIES)
+    target_row = qualified.sample(1).iloc[0]
+    
+    # 3. Find the "Winner" (Highest in that category for that Year/Pos/Conf)
+    # This makes the game "Find the leader of [Category] in [Year] at [Position] in [Conf]"
+    subset = qualified[
+        (qualified['season'] == target_row['season']) & 
+        (qualified['pos'] == target_row['pos']) & 
+        (qualified['conference'] == target_row['conference'])
+    ]
+    
+    winner_row = subset.loc[subset[selected_category].idxmax()]
+
+    # 4. Pick 3 "Decoy" players from the same season/conf to make it hard
+    decoys = qualified[qualified['season'] == winner_row['season']].sample(3)
+    choices = pd.concat([pd.DataFrame([winner_row]), decoys]).sample(frac=1)
+
+    return {
+        "clues": {
+            "stat_val": f"{winner_row[selected_category]}",
+            "stat_name": selected_category.replace('_', ' ').upper(),
+            "season": int(winner_row['season']),
+            "pos": winner_row['pos'],
+            "conf": winner_row['conference']
+        },
+        "winner": winner_row["player"],
+        "choices": choices["player"].tolist()
+    }
+
+@app.get("/spin", response_class=HTMLResponse)
+async def spin_page(request: Request):
+    return templates.TemplateResponse("spin.html", {"request": request})

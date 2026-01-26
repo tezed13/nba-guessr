@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NBA Spin Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* The Slot Machine Animation */
+        .slot-container {
+            height: 120px;
+            overflow: hidden;
+            border: 2px solid #374151;
+            border-radius: 12px;
+            background: #1f2937;
+        }
+        .slot-reel {
+            animation: spin 2s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+        }
+        @keyframes spin {
+            0% { transform: translateY(0); filter: blur(0); }
+            50% { transform: translateY(-500px); filter: blur(4px); }
+            100% { transform: translateY(0); filter: blur(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-10 flex flex-col items-center">
+    <h1 class="text-5xl font-black mb-10 text-yellow-500 italic">NBA SPIN</h1>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl mb-12">
+        <div class="slot-container flex flex-col items-center justify-center">
+            <div id="reel-stat" class="slot-reel text-center">
+                <span class="text-xs text-gray-400 block" id="stat-label">CATEGORY</span>
+                <span class="text-2xl font-bold" id="stat-val">?</span>
+            </div>
+        </div>
+        <div class="slot-container flex flex-col items-center justify-center">
+            <div id="reel-year" class="slot-reel text-center">
+                <span class="text-xs text-gray-400 block">YEAR</span>
+                <span class="text-2xl font-bold" id="year-val">?</span>
+            </div>
+        </div>
+        <div class="slot-container flex flex-col items-center justify-center">
+            <div id="reel-pos" class="slot-reel text-center">
+                <span class="text-xs text-gray-400 block">POSITION</span>
+                <span class="text-2xl font-bold" id="pos-val">?</span>
+            </div>
+        </div>
+        <div class="slot-container flex flex-col items-center justify-center">
+            <div id="reel-conf" class="slot-reel text-center">
+                <span class="text-xs text-gray-400 block">CONFERENCE</span>
+                <span class="text-2xl font-bold" id="conf-val">?</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="choices-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl"></div>
+
+    <button id="spinBtn" onclick="playGame()" class="mt-12 bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 px-12 rounded-full text-2xl transition-all active:scale-95 shadow-lg">
+        SPIN TO START
+    </button>
+
+    <script>
+        async function playGame() {
+            const btn = document.getElementById('spinBtn');
+            btn.disabled = true;
+            btn.textContent = "SPINNING...";
+
+            // Trigger animation classes
+            document.querySelectorAll('.slot-reel').forEach(r => {
+                r.style.animation = 'none';
+                r.offsetHeight; /* trigger reflow */
+                r.style.animation = null;
+            });
+
+            const res = await fetch('/spin_data');
+            const data = await res.json();
+
+            // Wait for animation to finish (2s)\
+            setTimeout(() => {
+                document.getElementById('stat-label').textContent = data.clues.stat_name;
+                document.getElementById('stat-val').textContent = data.clues.stat_val;
+                document.getElementById('year-val').textContent = data.clues.season;
+                document.getElementById('pos-val').textContent = data.clues.pos;
+                document.getElementById('conf-val').textContent = data.clues.conf;
+
+                const grid = document.getElementById('choices-grid');
+                grid.innerHTML = '';
+                data.choices.forEach(name => {
+                    const b = document.createElement('button');
+                    b.className = "bg-gray-800 border-2 border-gray-700 p-6 rounded-xl hover:bg-gray-700 font-bold text-xl transition-all";
+                    b.textContent = name;
+                    b.onclick = () => {
+                        if(name === data.winner) {
+                            alert("✅ SWISH! Correct.");
+                            playGame();
+                        } else {
+                            alert("❌ AIRBALL! It was " + data.winner);
+                        }
+                    };
+                    grid.appendChild(b);
+                });
+
+                btn.disabled = false;
+                btn.textContent = "SPIN AGAIN";
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
