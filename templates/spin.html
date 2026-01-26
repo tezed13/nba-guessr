@@ -8,9 +8,10 @@
         .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
         .slot-reel { animation: spin 1.5s cubic-bezier(0.45, 0.05, 0.55, 0.95);  transition: all 0.1s ease-in-out;}
         .shuffling {
-            color: #555 !important; /* Dim the text while it's moving */
-            filter: blur(1px);
-        }
+    color: #444 !important; /* Dim the text while shuffling */
+    filter: blur(1.5px);    /* Motion blur effect */
+    transition: none;       /* Disable transitions during rapid shuffle */
+}
         @keyframes spin {
             0% { transform: translateY(0); filter: blur(0); }
             50% { transform: translateY(-300px); filter: blur(4px); }
@@ -90,53 +91,64 @@
 
 
 async function triggerSpin() {
-        // Reset UI & Play Sound
-        spinSfx.play();
-        document.getElementById('resultMsg').textContent = "";
-        document.getElementById('correctName').textContent = "";
-        document.getElementById('guessInput').value = "";
-        document.getElementById('submitBtn').classList.remove('hidden');
-        document.getElementById('spinBtn').classList.add('hidden');
+    // 1. Reset UI & Play Sound
+    if (spinSfx) spinSfx.play();
+    document.getElementById('resultMsg').textContent = "";
+    document.getElementById('correctName').textContent = "";
+    document.getElementById('guessInput').value = "";
+    document.getElementById('submitBtn').classList.remove('hidden');
+    document.getElementById('spinBtn').classList.add('hidden');
 
-        // Start the Flicker effect
-        const shuffleInterval = setInterval(() => {
-            // Note: Use .textContent for the labels and values
-            document.getElementById('stat-label').textContent = "CATEGORY"; // Keep the label static or shuffle it
-            document.getElementById('stat-val').textContent = (Math.random() * 30).toFixed(1);
+    // 2. Start the "Flicker" effect for ALL columns
+    const shuffleInterval = setInterval(() => {
+        // Column 1: Stat Name and a random Stat Value
+        const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
+        document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
+        document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
+
+        // Column 2: Random Year
+        document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
+
+        // Column 3: Random Position
+        document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
+
+        // Column 4: Random Conference
+        document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
+        
+        // Add a "shuffling" class for a slight blur/dim effect if you have the CSS
+        document.querySelectorAll('.slot-reel').forEach(el => el.classList.add('shuffling'));
+    }, 80); 
+
+    try {
+        // 3. Fetch the actual winner from the backend
+        const res = await fetch('/spin_data');
+        const data = await res.json();
+        currentWinner = data.winner;
+
+        // 4. Stop shuffling after 2 seconds and land on the real values
+        setTimeout(() => {
+            clearInterval(shuffleInterval);
             
-            // This shuffles the actual category names in the label
-            const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
-            document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
+            // Remove the shuffling blur
+            document.querySelectorAll('.slot-reel').forEach(el => el.classList.remove('shuffling'));
 
-            document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
-            document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
-            document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
-        }, 80);
-
-        // Fetch the actual winner from the backend
-        try {
-            const res = await fetch('/spin_data');
-            const data = await res.json();
-            currentWinner = data.winner;
-
-            // Stop shuffling after 2 seconds and show real data
-            setTimeout(() => {
-                clearInterval(shuffleInterval);
-                
-                document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
-                document.getElementById('stat-val').textContent = data.clues.stat_val;
-                document.getElementById('year-val').textContent = data.clues.season;
-                document.getElementById('pos-val').textContent = data.clues.pos;
-                document.getElementById('conf-val').textContent = data.clues.conf;
-                
+            // Land on the REAL data from the server
+            document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
+            document.getElementById('stat-val').textContent = data.clues.stat_val;
+            document.getElementById('year-val').textContent = data.clues.season;
+            document.getElementById('pos-val').textContent = data.clues.pos;
+            document.getElementById('conf-val').textContent = data.clues.conf;
+            
+            if (spinSfx) {
                 spinSfx.pause();
                 spinSfx.currentTime = 0;
-            }, 2000);
-        } catch (err) {
-            console.error("Spin error:", err);
-            clearInterval(shuffleInterval);
-        }
+            }
+        }, 2000); 
+    } catch (err) {
+        console.error("Spin error:", err);
+        clearInterval(shuffleInterval);
     }
+}
 
     // --- Button Actions ---
     document.getElementById('submitBtn').onclick = () => {
