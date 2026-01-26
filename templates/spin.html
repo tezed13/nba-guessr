@@ -6,11 +6,24 @@
     <style>
         body { background-color: #000000; color: #ffffff; }
         .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
-        .slot-reel { transition: all 0.1s ease-in-out;}
         .shuffling {
             color: #444 !important;    
             transition: none;       
         }
+        .slot-reel {
+    /* Remove any transition to make the "click" look instant and mechanical */
+    transition: none; 
+}
+
+/* Optional: Add a subtle 'pop' animation when it lands */
+.landed {
+    animation: land-pop 0.2s ease-out;
+}
+
+@keyframes land-pop {
+    0% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
     </style>
 </head>
 <body class="min-h-screen p-6 flex flex-col items-center">
@@ -90,52 +103,72 @@
 
         fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
 
-        async function triggerSpin() {
-            if (spinSfx) spinSfx.play();
-            document.getElementById('resultMsg').textContent = "";
-            document.getElementById('correctName').textContent = "";
-            document.getElementById('guessInput').value = "";
-            document.getElementById('submitBtn').classList.remove('hidden');
-            document.getElementById('spinBtn').classList.add('hidden');
+// 1. Add the click sound to your Audio setup
+const clickSfx = new Audio('/static/click.mp3');
 
-            // 2. SHUFFLE EFFECT
-            const shuffleInterval = setInterval(() => {
-                const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
-                document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
-                document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
-                document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
-                document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
-                document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
-                
-                document.querySelectorAll('.slot-reel').forEach(el => el.classList.add('shuffling'));
-            }, 80); 
+async function triggerSpin() {
+    // Reset UI
+    if (spinSfx) spinSfx.play();
+    document.getElementById('resultMsg').textContent = "";
+    document.getElementById('correctName').textContent = "";
+    document.getElementById('guessInput').value = "";
+    document.getElementById('submitBtn').classList.remove('hidden');
+    document.getElementById('spinBtn').classList.add('hidden');
 
-            try {
-                const res = await fetch('/spin_data');
-                const data = await res.json();
-                currentWinner = data.winner;
+    // 2. Start Shuffling
+    const shuffleInterval = setInterval(() => {
+        // Randomize all fields
+        const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
+        document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
+        document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
+        document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
+        document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
+        document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
+    }, 60); // Faster flicker
 
-                setTimeout(() => {
-                    clearInterval(shuffleInterval);
-                    document.querySelectorAll('.slot-reel').forEach(el => el.classList.remove('shuffling'));
+    try {
+        const res = await fetch('/spin_data');
+        const data = await res.json();
+        currentWinner = data.winner;
 
-                    // 3. LAND ON REAL DATA
-                    document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
-                    document.getElementById('stat-val').textContent = data.clues.stat_val;
-                    document.getElementById('year-val').textContent = data.clues.season;
-                    document.getElementById('pos-val').textContent = data.clues.pos;
-                    document.getElementById('conf-val').textContent = data.clues.conf;
-                    
-                    if (spinSfx) {
-                        spinSfx.pause();
-                        spinSfx.currentTime = 0;
-                    }
-                }, 2000); 
-            } catch (err) {
-                console.error("Spin error:", err);
-                clearInterval(shuffleInterval);
+        // 3. Staggered Stopping (Left to Right)
+        
+        // STOP REEL 1 (CATEGORY & STAT) - at 1.0s
+        setTimeout(() => {
+            document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
+            document.getElementById('stat-val').textContent = data.clues.stat_val;
+            if (clickSfx) clickSfx.play();
+        }, 1000);
+
+        // STOP REEL 2 (SEASON) - at 1.4s
+        setTimeout(() => {
+            document.getElementById('year-val').textContent = data.clues.season;
+            if (clickSfx) clickSfx.cloneNode(true).play(); // cloneNode allows sounds to overlap
+        }, 1400);
+
+        // STOP REEL 3 (POSITION) - at 1.8s
+        setTimeout(() => {
+            document.getElementById('pos-val').textContent = data.clues.pos;
+            if (clickSfx) clickSfx.cloneNode(true).play();
+        }, 1800);
+
+        // STOP REEL 4 (CONFERENCE) - at 2.2s
+        setTimeout(() => {
+            clearInterval(shuffleInterval); // Stop the loop entirely
+            document.getElementById('conf-val').textContent = data.clues.conf;
+            
+            if (clickSfx) clickSfx.cloneNode(true).play();
+            if (spinSfx) {
+                spinSfx.pause();
+                spinSfx.currentTime = 0;
             }
-        }
+        }, 2200);
+
+    } catch (err) {
+        console.error("Spin error:", err);
+        clearInterval(shuffleInterval);
+    }
+}
 
         document.getElementById('submitBtn').onclick = () => {
             const guess = document.getElementById('guessInput').value.trim();
