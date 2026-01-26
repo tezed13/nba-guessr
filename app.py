@@ -116,12 +116,13 @@ TEAM_TO_CONF = {
     'PHO': 'Western', 'PHX': 'Western', 'POR': 'Western', 'SAC': 'Western', 'SAS': 'Western', 'UTA': 'Western',
 }
 
+# Updated spin_data in app.py
 @app.get("/spin_data")
 async def spin_data():
     if stats_df.empty:
-        return JSONResponse({"error": "CSV not loaded"}, status_code=500)
+        return JSONResponse({"error": "No data"}, status_code=500)
 
-    # 1. Selection Logic (League-wide)
+    # 1. Randomly pick a season and stat key
     available_seasons = stats_df["season"].unique().tolist()
     chosen_season = random.choice(available_seasons)
     
@@ -134,23 +135,22 @@ async def spin_data():
         "tov_per_game": "Turnovers Per Game",
         "pf_per_game": "Fouls Per Game",
         "fta_per_game": "Free Attempts Per Game",
-        "x3pa_per_game": "Three Pointers Attempted Per Game",
+        "fg3a_per_game": "Three Pointers Attempted Per Game",
         "fga_per_game": "Shots Attempted Per Game",
         "mp_per_game": "Minutes Per Game"
     }
     chosen_stat_key = random.choice(list(stat_map.keys()))
     
-    # Filter for qualified players in that season
+    # 2. Filter for qualified players (>40 games)
     season_df = stats_df[(stats_df["season"] == chosen_season) & (stats_df["g"] > 40)].copy()
     if season_df.empty: return await spin_data()
 
-    # Find the league-wide leader
+    # 3. Find the leader
     leader_row = season_df.sort_values(by=chosen_stat_key, ascending=False).iloc[0]
     
-    # 2. Extract Hint Data
-    player_pos = leader_row["pos"]
+    # 4. Get Hints
     team_abbrev = leader_row["tm"]
-    player_conf = TEAM_TO_CONF.get(team_abbrev, "NBA")
+    player_conf = TEAM_TO_CONF.get(team_abbrev, "East") # Default to East if missing
 
     return {
         "winner": leader_row["player"],
@@ -158,8 +158,8 @@ async def spin_data():
             "stat_name": stat_map[chosen_stat_key],
             "stat_val": str(leader_row[chosen_stat_key]),
             "season": str(chosen_season),
-            "pos": player_pos,   # Now showing the specific position
-            "conf": player_conf  # Now showing the specific conference
+            "pos": leader_row["pos"],
+            "conf": player_conf
         }
     }
 @app.get("/spin", response_class=HTMLResponse)

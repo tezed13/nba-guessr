@@ -2,11 +2,23 @@
 <html>
 <head>
     <title>NBA Spin - Night Mode</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com">
+        const STAT_OPTIONS = [
+    "Points Per Game", "Rebounds Per Game", "Assists Per Game", "Steals Per Game",
+    "Blocks Per Game", "Turnovers Per Game", "Fouls Per Game", "Free Attempts Per Game",
+    "Three Pointers Attempted Per Game", "Shots Attempted Per Game", "Minutes Per Game"
+];
+const POS_OPTIONS = ["PG", "SG", "SF", "PF", "C"];
+const CONF_OPTIONS = ["Eastern", "Western"];
+    </script>
     <style>
         body { background-color: #000000; color: #ffffff; }
         .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
-        .slot-reel { animation: spin 1.5s cubic-bezier(0.45, 0.05, 0.55, 0.95); }
+        .slot-reel { animation: spin 1.5s cubic-bezier(0.45, 0.05, 0.55, 0.95);  transition: all 0.1s ease-in-out;}
+        .shuffling {
+            color: #555 !important; /* Dim the text while it's moving */
+            filter: blur(1px);
+        }
         @keyframes spin {
             0% { transform: translateY(0); filter: blur(0); }
             50% { transform: translateY(-300px); filter: blur(4px); }
@@ -83,32 +95,47 @@
 
         fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
 
-        async function triggerSpin() {
-            spinSfx.play();
-            document.getElementById('resultMsg').textContent = "";
-            document.getElementById('correctName').textContent = "";
-            document.getElementById('guessInput').value = "";
-            document.getElementById('submitBtn').classList.remove('hidden');
-            document.getElementById('spinBtn').classList.add('hidden');
-            
-            document.querySelectorAll('.slot-reel').forEach(r => {
-                r.style.animation = 'none';
-                r.offsetHeight; 
-                r.style.animation = null;
-            });
 
-            const res = await fetch('/spin_data');
-            const data = await res.json();
-            currentWinner = data.winner;
 
-            setTimeout(() => {
-                document.getElementById('stat-label').textContent = data.clues.stat_name;
-                document.getElementById('stat-val').textContent = data.clues.stat_val;
-                document.getElementById('year-val').textContent = data.clues.season;
-                document.getElementById('pos-val').textContent = data.clues.pos;
-                document.getElementById('conf-val').textContent = data.clues.conf;
-            }, 1500);
-        }
+async function triggerSpin() {
+    // 1. Reset UI & Play Sound
+    spinSfx.play();
+    document.getElementById('resultMsg').textContent = "";
+    document.getElementById('correctName').textContent = "";
+    document.getElementById('guessInput').value = "";
+    document.getElementById('submitBtn').classList.remove('hidden');
+    document.getElementById('spinBtn').classList.add('hidden');
+
+    // 2. Start the "Flicker" effect
+    const shuffleInterval = setInterval(() => {
+        document.getElementById('stat-label').textContent = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
+        document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
+        document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
+        document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
+        document.getElementById('stat-val').textContent = (Math.random() * 30).toFixed(1);
+    }, 80); // Updates every 80ms for a blur effect
+
+    // 3. Fetch the actual winner
+    const res = await fetch('/spin_data');
+    const data = await res.json();
+    currentWinner = data.winner;
+
+    // 4. Stop shuffling and land on the real value after 2 seconds
+    setTimeout(() => {
+        clearInterval(shuffleInterval);
+        
+        // Land on the REAL values from the server
+        document.getElementById('stat-label').textContent = data.clues.stat_name;
+        document.getElementById('stat-val').textContent = data.clues.stat_val;
+        document.getElementById('year-val').textContent = data.clues.season;
+        document.getElementById('pos-val').textContent = data.clues.pos;
+        document.getElementById('conf-val').textContent = data.clues.conf;
+        
+        // Small "landing" sound or stop spin sound
+        spinSfx.pause();
+        spinSfx.currentTime = 0;
+    }, 2000); 
+}
 
         document.getElementById('submitBtn').onclick = () => {
             const guess = document.getElementById('guessInput').value.trim();
