@@ -79,53 +79,50 @@
         fetch('/all_players').then(r => r.json()).then(data => allPlayers = data);
 
         async function loadPlayer() {
-            const start = document.getElementById('startSeason').value;
-            const end = document.getElementById('endSeason').value;
-            const types = document.getElementById('types').value;
+    // Get values and strip out any weird characters
+    const start = document.getElementById('startSeason').value;
+    const end = document.getElementById('endSeason').value;
+    let types = document.getElementById('types').value;
+    
+    // Clean types string to ensure it's just "starters,bench"
+    types = types.replace(/[\[\]'"]/g, "");
 
-            // Reset UI
-            document.getElementById('seasonsBody').innerHTML = "<tr><td colspan='8' class='p-10 text-center text-gray-600 animate-pulse'>LOADING STATS...</td></tr>";
-            document.getElementById('playerNameDisplay').textContent = "??????";
-            document.getElementById('playerNameDisplay').className = "text-3xl font-black mb-6 text-gray-700 tracking-widest uppercase";
-            document.getElementById('resultMsg').textContent = "";
-            document.getElementById('guessInput').value = "";
-            document.getElementById('submitBtn').classList.remove('hidden');
-            document.getElementById('nextBtn').classList.add('hidden');
+    const tbody = document.getElementById('seasonsBody');
+    tbody.innerHTML = "<tr><td colspan='8' class='p-10 text-center text-gray-500 animate-pulse'>LOADING...</td></tr>";
 
-            try {
-                const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
-                const data = await res.json();
-
-                if (data.error) {
-                    alert("No players found. Try widening your filters!");
-                    return;
-                }
-
-                currentPlayerName = data.player_name;
-                const tbody = document.getElementById('seasonsBody');
-                tbody.innerHTML = "";
-
-                data.seasons.forEach(s => {
-                    const row = `
-                        <tr class="border-b border-gray-900">
-                            <td class="p-4 font-bold text-gray-500">${s.season}</td>
-                            <td class="p-4">${s.tm}</td>
-                            <td class="p-4">${s.g}</td>
-                            <td class="p-4">${s.gs}</td>
-                            <td class="p-4">${s.mp_per_game}</td>
-                            <td class="p-4 text-blue-400 font-bold">${s.pts_per_game}</td>
-                            <td class="p-4">${s.ast_per_game}</td>
-                            <td class="p-4">${s.trb_per_game}</td>
-                        </tr>
-                    `;
-                    tbody.insertAdjacentHTML('beforeend', row);
-                });
-
-            } catch (err) {
-                console.error("Error loading player:", err);
-            }
+    try {
+        const response = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+        
+        // If the server sends a 500, this catch will trigger
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Server Error");
         }
 
+        const data = await response.json();
+        currentPlayerName = data.player_name;
+        
+        tbody.innerHTML = ""; // Clear loader
+        data.seasons.forEach(s => {
+            const row = `
+                <tr class="border-b border-gray-900">
+                    <td class="p-4 text-gray-500">${s.season}</td>
+                    <td class="p-4">${s.tm}</td>
+                    <td class="p-4">${s.g}</td>
+                    <td class="p-4">${s.gs}</td>
+                    <td class="p-4">${s.mp_per_game || s.mp}</td>
+                    <td class="p-4 text-blue-400 font-bold">${s.pts_per_game || s.pts}</td>
+                    <td class="p-4">${s.ast_per_game || s.ast}</td>
+                    <td class="p-4">${s.trb_per_game || s.trb}</td>
+                </tr>
+            `;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+    } catch (err) {
+        console.error("Fetch Error:", err);
+        tbody.innerHTML = `<tr><td colspan='8' class='p-10 text-center text-red-500'>Error: ${err.message}</td></tr>`;
+    }
+}
         // Guess Logic
         document.getElementById('submitBtn').onclick = () => {
             const guess = document.getElementById('guessInput').value.trim().toLowerCase();

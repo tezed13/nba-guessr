@@ -4,3 +4,4 @@ pandas
 jinja2
 python-multipart
 flask
+gunicorn

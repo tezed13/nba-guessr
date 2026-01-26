@@ -50,54 +50,56 @@ async def all_players():
 @app.route("/random_player")
 def random_player():
     try:
-        # Get arguments from URL
+        # 1. Get and CLEAN the inputs
         start_year = int(request.args.get('start_season', 2000))
         end_year = int(request.args.get('end_season', 2025))
-        types = request.args.get('types', 'starters').split(',')
+        
+        # Clean the 'types' string in case it has brackets or quotes from the URL
+        raw_types = request.args.get('types', 'starters')
+        clean_types = raw_types.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+        type_list = [t.strip() for t in clean_types.split(',')]
 
-        # Clean column names immediately to avoid Case Sensitivity crashes
-        stats_df.columns = [c.strip().lower() for c in stats_df.columns]
+        # 2. Safety check for DataFrame
+        if stats_df.empty:
+            return jsonify({"error": "Database is empty"}), 500
 
-        # 1. Filter by Year
+        # Ensure columns are lowercase
+        stats_df.columns = [c.lower() for c in stats_df.columns]
+
+        # 3. Filter by Year
         mask = (stats_df['season'] >= start_year) & (stats_df['season'] <= end_year)
         pool = stats_df[mask]
 
         if pool.empty:
-            return jsonify({"error": "No data found for those years"}), 404
+            return jsonify({"error": "No players in this year range"}), 404
 
-        # 2. Filter by GS (Games Started)
-        # We use .get() to avoid crashing if 'gs' column is missing entirely
-        if 'gs' in pool.columns:
-            diff_mask = pd.Series(False, index=pool.index)
-            if 'starters' in types:
-                diff_mask |= (pool['gs'] >= 40)
-            if 'bench' in types:
-                diff_mask |= (pool['gs'] >= 5) & (pool['gs'] < 40)
-            if 'endbench' in types:
-                diff_mask |= (pool['gs'] < 5)
-            
-            filtered = pool[diff_mask]
-        else:
-            # Fallback if GS column doesn't exist in your CSV
+        # 4. Filter by Difficulty (Games Started)
+        diff_mask = pd.Series(False, index=pool.index)
+        if 'starters' in type_list:
+            diff_mask |= (pool['gs'] >= 40)
+        if 'bench' in type_list:
+            diff_mask |= (pool['gs'] >= 5) & (pool['gs'] < 40)
+        if 'endbench' in type_list:
+            diff_mask |= (pool['gs'] < 5)
+
+        filtered = pool[diff_mask]
+        
+        # Fallback if specific difficulty is empty
+        if filtered.empty:
             filtered = pool
 
-        # 3. Handle Empty Results
-        if filtered.empty:
-            filtered = pool # Just give any player if filter is too tight
-
-        # 4. Select Player and their Career Stats
+        # 5. Pick Player
         random_name = random.choice(filtered['player'].unique())
-        career_stats = stats_df[stats_df['player'] == random_name].sort_values('season', ascending=False)
+        career = stats_df[stats_df['player'] == random_name].sort_values('season', ascending=False)
 
         return jsonify({
             "player_name": random_name,
-            "seasons": career_stats.to_dict(orient='records')
+            "seasons": career.to_dict(orient='records')
         })
 
     except Exception as e:
-        # This prints the REAL error to your Render/Python console
-        print(f"CRITICAL ERROR: {str(e)}")
-        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+        print(f"CRASH LOG: {str(e)}") # This shows up in Render Logs
+        return jsonify({"error": str(e)}), 500
     
 # List of categories you provided
 CATEGORIES = [
