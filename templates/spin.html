@@ -1,27 +1,95 @@
-<script src="https://cdn.tailwindcss.com"></script>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NBA Spin - Night Mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #000000; color: #ffffff; }
+        .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
+        .slot-reel { animation: spin 1.5s cubic-bezier(0.45, 0.05, 0.55, 0.95);  transition: all 0.1s ease-in-out;}
+        .shuffling {
+            color: #555 !important; /* Dim the text while it's moving */
+            filter: blur(1px);
+        }
+        @keyframes spin {
+            0% { transform: translateY(0); filter: blur(0); }
+            50% { transform: translateY(-300px); filter: blur(4px); }
+            100% { transform: translateY(0); filter: blur(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-6 flex flex-col items-center">
+    <nav class="w-full max-w-4xl mb-4 text-left">
+        <a href="/" class="text-gray-400 hover:text-white font-bold transition">← Back to Menu</a>
+    </nav>
 
-<script>
-    // 1. Define your options globally so triggerSpin can see them
-    const STAT_OPTIONS = [
-        "Points Per Game", "Rebounds Per Game", "Assists Per Game", "Steals Per Game",
-        "Blocks Per Game", "Turnovers Per Game", "Fouls Per Game", "Free Attempts Per Game",
-        "Three Pointers Attempted Per Game", "Shots Attempted Per Game", "Minutes Per Game"
-    ];
-    const POS_OPTIONS = ["PG", "SG", "SF", "PF", "C"];
-    const CONF_OPTIONS = ["Eastern", "Western"];
+    <h1 class="text-5xl font-black mb-10 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 italic uppercase">NBA SPIN</h1>
 
-    let currentWinner = "";
-    let spinStreak = 0;
-    let playerNames = [];
-    
-    // Audio Setup
-    const spinSfx = new Audio('/static/spin.mp3');
-    const winSfx = new Audio('/static/win.mp3');
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl mb-12">
+        <div class="slot-container flex flex-col items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+            <div id="reel-stat" class="slot-reel text-center">
+                <span class="text-[10px] text-gray-500 block uppercase font-bold" id="stat-label">CATEGORY</span>
+                <span class="text-xl font-black text-yellow-500" id="stat-val">?</span>
+            </div>
+        </div>
+        <div class="slot-container flex flex-col items-center justify-center border-gray-800">
+            <div id="reel-year" class="slot-reel text-center">
+                <span class="text-[10px] text-gray-500 block uppercase font-bold">SEASON</span>
+                <span class="text-xl font-black text-white" id="year-val">?</span>
+            </div>
+        </div>
+        <div class="slot-container flex flex-col items-center justify-center border-gray-800">
+            <div id="reel-pos" class="slot-reel text-center">
+                <span class="text-[10px] text-gray-500 block uppercase font-bold">POSITION</span>
+                <span class="text-xl font-black text-white" id="pos-val">?</span>
+            </div>
+        </div>
+        <div class="slot-container flex flex-col items-center justify-center border-gray-800">
+            <div id="reel-conf" class="slot-reel text-center">
+                <span class="text-[10px] text-gray-500 block uppercase font-bold">CONFERENCE</span>
+                <span class="text-xl font-black text-white" id="conf-val">?</span>
+            </div>
+        </div>
+    </div>
 
-    // Load players for autocomplete
-    fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
+    <div class="w-full max-w-lg bg-gray-900 p-8 rounded-3xl border border-gray-800 shadow-2xl">
+        <div class="relative">
+            <input type="text" id="guessInput" placeholder="Name the player..." 
+                   class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-yellow-500 outline-none transition-all text-lg font-bold text-white">
+            <div id="suggestions" class="absolute z-10 w-full border border-gray-800 rounded-md mt-1 bg-gray-900 max-h-48 overflow-y-auto hidden"></div>
+        </div>
 
-    async function triggerSpin() {
+        <div class="flex gap-2 mt-4">
+            <button id="submitBtn" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl transition-all">SUBMIT</button>
+            <button id="spinBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all hidden">NEXT SPIN</button>
+        </div>
+
+        <div id="resultArea" class="mt-6 text-center min-h-[60px]">
+            <p id="resultMsg" class="text-2xl font-black italic uppercase"></p>
+            <p id="correctName" class="text-gray-400 mt-2 font-bold"></p>
+        </div>
+
+        <div class="mt-4 flex justify-center">
+            <div class="bg-black border border-gray-800 px-8 py-3 rounded-full font-black">
+                🔥 STREAK: <span id="streakVal" class="text-yellow-500 text-xl">0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentWinner = "";
+        let spinStreak = 0;
+        let playerNames = [];
+        
+        // Audio Setup
+        const spinSfx = new Audio('/static/spin.mp3');
+        const winSfx = new Audio('/static/win.mp3');
+
+        fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
+
+
+
+async function triggerSpin() {
         // Reset UI & Play Sound
         spinSfx.play();
         document.getElementById('resultMsg').textContent = "";
@@ -119,3 +187,5 @@
     document.getElementById('spinBtn').onclick = triggerSpin;
     window.onload = triggerSpin;
 </script>
+</body>
+</html>
