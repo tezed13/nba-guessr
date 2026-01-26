@@ -119,41 +119,47 @@ TEAM_TO_CONF = {
 @app.get("/spin_data")
 async def spin_data():
     if stats_df.empty:
-        return JSONResponse({"error": "CSV not loaded"}, status_code=500)
+        return JSONResponse({"error": "No data"}, status_code=500)
 
-    # Filter by your criteria
-    qualified = stats_df[(stats_df["g"] > 45) & (stats_df["mp_per_game"] > 12)].copy()
+    # 1. Pick a random season and category
+    available_seasons = stats_df["season"].unique().tolist()
+    chosen_season = random.choice(available_seasons)
     
-    # Map Conference
-    qualified['conference'] = qualified['tm'].map(TEAM_TO_CONF).fillna('Other')
-    qualified = qualified[qualified['conference'] != 'Other']
-
-    # Pick a random category
-    selected_category = random.choice(CATEGORIES)
-    
-    # Pick a random target row from the whole dataset
-    target_row = qualified.sample(1).iloc[0]
-    
-    # Find the leader in that category for that Year/Pos/Conf
-    subset = qualified[
-        (qualified['season'] == target_row['season']) & 
-        (qualified['pos'] == target_row['pos']) & 
-        (qualified['conference'] == target_row['conference'])
-    ]
-    
-    winner_row = subset.loc[subset[selected_category].idxmax()]
-
-    return {
-        "clues": {
-            "stat_val": f"{winner_row[selected_category]}",
-            "stat_name": selected_category.replace('_', ' ').upper(),
-            "season": int(winner_row['season']),
-            "pos": winner_row['pos'],
-            "conf": winner_row['conference']
-        },
-        "winner": winner_row["player"]
+    # Define the stats we want to track
+    stat_map = {
+        "pts_per_game": "Points Per Game",
+        "trb_per_game": "Rebounds Per Game",
+        "ast_per_game": "Assists Per Game",
+        "stl_per_game": "Steals Per Game",
+        "blk_per_game": "Blocks Per Game",
+        "mp_per_game": "Minutes Per Game"
     }
+    chosen_stat_key = random.choice(list(stat_map.keys()))
+    
+    # 2. Filter data for that season ONLY
+    # We apply a basic qualification filter (e.g., played > 40 games) 
+    # to avoid bench players with 1 game skewed stats
+    season_df = stats_df[
+        (stats_df["season"] == chosen_season) & 
+        (stats_df["g"] > 40)
+    ].copy()
 
+    if season_df.empty:
+        return await spin_data() # Retry if no one qualifies
+
+    # 3. Find the leader
+    leader_row = season_df.sort_values(by=chosen_stat_key, ascending=False).iloc[0]
+    
+    return {
+        "winner": leader_row["player"],
+        "clues": {
+            "stat_name": stat_map[chosen_stat_key],
+            "stat_val": str(leader_row[chosen_stat_key]),
+            "season": str(chosen_season),
+            "pos": "ALL", # Visual indicator that position doesn't matter
+            "conf": "NBA"  # Visual indicator that conference doesn't matter
+        }
+    }
 @app.get("/spin", response_class=HTMLResponse)
 async def spin_page(request: Request):
     return templates.TemplateResponse("spin.html", {"request": request})
