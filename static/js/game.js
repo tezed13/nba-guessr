@@ -9,53 +9,53 @@ fetch("/all_players")
   .catch(err => console.error("Error loading player list:", err));
 
 async function loadRandomPlayer() {
-  // 1. Reset UI for the new round
-  seasonsBody.innerHTML = "";       
-  resultText.textContent = "";      
-  guessInput.value = "";            
-  playerNameEl.textContent = "??????"; 
-  playerNameEl.className = "text-2xl font-black text-center mb-4 text-gray-300 tracking-widest uppercase";
-  nextRoundBtn.style.display = "none";
-  submitBtn.disabled = false;
+    // 1. Reset the table and UI
+    const seasonsBody = document.getElementById("seasonsBody");
+    const resultText = document.getElementById("resultText");
+    const playerNameEl = document.getElementById("playerName");
+    const guessInput = document.getElementById("guessInput");
 
-  // 2. Get parameters from hidden inputs
-  const start = document.getElementById("startSeason").value;
-  const end = document.getElementById("endSeason").value;
-  const types = document.getElementById("types").value; // DO NOT .split(",") here
+    seasonsBody.innerHTML = "";
+    resultText.textContent = "";
+    guessInput.value = "";
+    playerNameEl.textContent = "??????";
 
-  // 3. Fetch data from the backend
-  try {
-    const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
-    const data = await res.json();
+    // 2. Grab settings from hidden inputs in your guess.html
+    const start = document.getElementById("startSeason").value;
+    const end = document.getElementById("endSeason").value;
+    const types = document.getElementById("types").value; 
 
-    if (data.error) {
-      resultText.textContent = "Error: " + data.error;
-      resultText.className = "mt-4 font-bold text-center text-xl text-red-600";
-      return;
+    try {
+        // 3. The Fetch (Make sure this URL matches your app.py route)
+        const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+        const data = await res.json();
+
+        if (data.error) {
+            console.error("Backend Error:", data.error);
+            return;
+        }
+
+        currentPlayerName = data.player_name;
+
+        // 4. Fill the table
+        data.seasons.forEach(s => {
+            const row = document.createElement("tr");
+            row.className = "border-b border-gray-800 hover:bg-gray-900";
+            row.innerHTML = `
+                <td class="p-2 text-blue-400 font-bold">${s.season}</td>
+                <td class="p-2">${s.tm}</td>
+                <td class="p-2">${s.g}</td>
+                <td class="p-2">${s.gs}</td>
+                <td class="p-2">${s.mp_per_game}</td>
+                <td class="p-2 text-yellow-500 font-bold">${s.pts_per_game}</td>
+                <td class="p-2">${s.ast_per_game}</td>
+                <td class="p-2">${s.trb_per_game}</td>
+            `;
+            seasonsBody.appendChild(row);
+        });
+    } catch (err) {
+        console.error("Failed to fetch player:", err);
     }
-
-    currentPlayerName = data.player_name;
-    
-    // 4. Populate the stats table
-    data.seasons.forEach(s => {
-      const row = document.createElement("tr");
-      row.className = "hover:bg-gray-800 transition-colors border-b border-gray-800";
-      row.innerHTML = `
-        <td class="p-2">${s.season}</td>
-        <td class="p-2">${s.tm}</td>
-        <td class="p-2">${s.g}</td>
-        <td class="p-2">${s.gs}</td>
-        <td class="p-2">${s.mp_per_game}</td>
-        <td class="p-2">${s.pts_per_game}</td>
-        <td class="p-2">${s.ast_per_game}</td>
-        <td class="p-2">${s.trb_per_game}</td>
-      `;
-      seasonsBody.appendChild(row);
-    });
-  } catch (err) {
-    console.error("Fetch error:", err);
-    resultText.textContent = "Failed to load player data.";
-  }
 }
 
 // Guess Logic

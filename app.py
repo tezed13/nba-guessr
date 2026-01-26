@@ -47,53 +47,36 @@ async def all_players():
     return sorted(stats_df["player"].dropna().unique().tolist())
 
 @app.get("/random_player")
-async def random_player(
-    start_season: int = 2000,
-    end_season: int = 2025,
-    types: list[str] = Query(None)
-):
-    if stats_df.empty:
-        return JSONResponse({"error": "CSV not loaded"}, status_code=500)
+async def random_player(start_season: int, end_season: int, types: str):
+    # Convert 'starters,bench' into a list ['starters', 'bench']
+    type_list = types.split(",")
+    
+    # Filter by Season Range
+    mask = (stats_df["season"] >= start_season) & (stats_df["season"] <= end_season)
+    
+    # Filter by Difficulty (GS = Games Started)
+    # Example logic: Starters > 50 GS, Bench 10-50 GS, Role < 10 GS
+    diff_mask = pd.Series(False, index=stats_df.index)
+    if "starters" in type_list:
+        diff_mask |= (stats_df["gs"] >= 50)
+    if "bench" in type_list:
+        diff_mask |= (stats_df["gs"] >= 10) & (stats_df["gs"] < 50)
+    if "endbench" in type_list:
+        diff_mask |= (stats_df["gs"] < 10)
 
-    types = types or ["starters", "bench", "endbench"]
+    filtered_df = stats_df[mask & diff_mask]
 
-    # filter by season range
-    df = stats_df[(stats_df["season"] >= start_season) & (stats_df["season"] <= end_season)]
-    temp = pd.DataFrame()
+    if filtered_df.empty:
+        return {"error": "No players found for this criteria"}
 
-    if "starters" in types:
-        temp = pd.concat([temp, df[df["gs"] >= 60]])
-    if "bench" in types:
-        temp = pd.concat([temp, df[(df["g"] > 50) & (df["mp_per_game"] > 10)]])
-    if "endbench" in types:
-        temp = pd.concat([temp, df[(df["g"] > 30) & (df["mp_per_game"] < 10.1)]])
+    # Pick a random player from the filtered list
+    random_player_name = random.choice(filtered_df["player"].unique())
+    player_data = stats_df[stats_df["player"] == random_player_name].sort_values("season")
 
-    df = temp.drop_duplicates()
-
-    if df.empty:
-        return JSONResponse({"error": "No players found"}, status_code=404)
-
-    row = df.sample(1).iloc[0]
-    player_id = row["player_id"]
-    player_name = row["player"]
-
-    # return all seasons
-    seasons = stats_df[stats_df["player_id"] == player_id].sort_values("season")
-    seasons_list = []
-    for _, s in seasons.iterrows():
-        seasons_list.append({
-            "season": int(s["season"]),
-            "tm": s["tm"],
-            "g": int(s["g"]),
-            "gs": int(s["gs"]) if not pd.isna(s["gs"]) else 0,
-            "mp_per_game": round(s["mp_per_game"], 1),
-            "pts_per_game": round(s["pts_per_game"], 1),
-            "ast_per_game": round(s["ast_per_game"], 1),
-            "trb_per_game": round(s["trb_per_game"], 1)
-        })
-
-    return {"player_name": player_name, "seasons": seasons_list}
-
+    return {
+        "player_name": random_player_name,
+        "seasons": player_data.to_dict(orient="records")
+    }
 
 
 # List of categories you provided
