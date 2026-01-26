@@ -1,192 +1,120 @@
-// ---------------------------
-// NBA Guessr Game Logic
-// ---------------------------
-
 let playerNames = [];
-let streak = 0;
 let currentPlayerName = "";
+let streak = 0;
 
-// --- Element references ---
-const guessInput = document.getElementById("guessInput");
-const suggestionsDiv = document.getElementById("suggestions");
-const playerNameEl = document.getElementById("playerName");
-const seasonsBody = document.getElementById("seasonsBody");
-const resultText = document.getElementById("resultText");
-const streakEl = document.getElementById("streak");
-const submitBtn = document.getElementById("submitGuess");
-const giveUpBtn = document.getElementById("giveUp");
-const nextRoundBtn = document.getElementById("nextRound");
-
-
-
-
-// Hide next round button initially
-nextRoundBtn.style.display = "none";
-
-// --- Load all players for autocomplete ---
+// Fetch all players for autocomplete
 fetch("/all_players")
   .then(res => res.json())
   .then(data => playerNames = data)
   .catch(err => console.error("Error loading player list:", err));
 
-// ---------------------------
-// Load Random Player
-// ---------------------------
 async function loadRandomPlayer() {
-  const start = document.getElementById("startSeason").value;
-  const end = document.getElementById("endSeason").value;
-  const types = document.getElementById("types").value.split(",");
+    // Reset UI
+    document.getElementById("seasonsBody").innerHTML = "";
+    document.getElementById("resultText").textContent = "";
+    document.getElementById("guessInput").value = "";
+    document.getElementById("playerName").textContent = "??????";
+    document.getElementById("playerName").className = "text-2xl font-black text-center mb-4 text-gray-300 tracking-widest uppercase";
+    document.getElementById("nextRound").style.display = "none";
+    document.getElementById("submitGuess").disabled = false;
 
-  const params = new URLSearchParams({ start_season: start, end_season: end });
-  types.forEach(t => params.append("types", t));
+    const start = document.getElementById("startSeason").value;
+    const end = document.getElementById("endSeason").value;
+    const types = document.getElementById("types").value;
 
-  const res = await fetch(`/random_player?${params}`);
-  const data = await res.json();
+    const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+    const data = await res.json();
 
-  resultText.textContent = "";
-  guessInput.value = "";
-  suggestionsDiv.classList.add("hidden");
-  nextRoundBtn.style.display = "none";
-
-  if (data.error) {
-    playerNameEl.textContent = "Error";
-    seasonsBody.innerHTML = `<tr><td colspan="8" class="text-center text-red-600 p-2">${data.error}</td></tr>`;
-    return;
-  }
-
-  playerNameEl.textContent = "???";
-  currentPlayerName = data.player_name;
-  seasonsBody.innerHTML = "";
-
-  data.seasons.forEach(season => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td class="border p-2">${season.season}</td>
-      <td class="border p-2">${season.tm}</td>
-      <td class="border p-2">${season.g}</td>
-      <td class="border p-2">${season.gs}</td>
-      <td class="border p-2">${season.mp_per_game}</td>
-      <td class="border p-2">${season.pts_per_game}</td>
-      <td class="border p-2">${season.ast_per_game}</td>
-      <td class="border p-2">${season.trb_per_game}</td>
-    `;
-    seasonsBody.appendChild(row);
-  });
-}
-
-// ---------------------------
-// Autocomplete
-// ---------------------------
-guessInput.addEventListener("input", () => {
-  const query = guessInput.value.toLowerCase().trim();
-  if (query.length < 3) {
-    suggestionsDiv.classList.add("hidden");
-    return;
-  }
-
-  const startsWithMatches = playerNames.filter(name =>
-    name.toLowerCase().split(" ").some(part => part.startsWith(query))
-  );
-
-  const containsMatches = playerNames.filter(name => {
-    const lower = name.toLowerCase();
-    return !lower.split(" ").some(part => part.startsWith(query)) && lower.includes(query);
-  });
-
-  const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
-
-  if (matches.length === 0) {
-    suggestionsDiv.classList.add("hidden");
-    return;
-  }
-
-  suggestionsDiv.innerHTML = matches
-    .map(name => {
-      const regex = new RegExp(`(${escapeRegExp(query)})`, "ig");
-      const highlighted = name.replace(regex, "<strong>$1</strong>");
-      return `<div data-name="${escapeHtmlAttr(name)}" class="p-1 hover:bg-gray-200 cursor-pointer">${highlighted}</div>`;
-    })
-    .join("");
-
-  suggestionsDiv.classList.remove("hidden");
-});
-
-// Click on suggestion
-suggestionsDiv.addEventListener("click", e => {
-  const item = e.target.closest("div[data-name]");
-  if (!item) return;
-  guessInput.value = item.dataset.name;
-  suggestionsDiv.classList.add("hidden");
-});
-
-// Enter key selects first suggestion
-guessInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    const firstSuggestion = suggestionsDiv.querySelector("div[data-name]");
-    if (firstSuggestion) {
-      guessInput.value = firstSuggestion.dataset.name;
-      suggestionsDiv.classList.add("hidden");
+    if (data.error) {
+        document.getElementById("resultText").textContent = data.error;
+        return;
     }
-  }
+
+    currentPlayerName = data.player_name;
+    
+    data.seasons.forEach(s => {
+        const row = `<tr>
+            <td class="border p-2">${s.season}</td>
+            <td class="border p-2">${s.tm}</td>
+            <td class="border p-2">${s.g}</td>
+            <td class="border p-2">${s.gs}</td>
+            <td class="border p-2">${s.mp_per_game}</td>
+            <td class="border p-2">${s.pts_per_game}</td>
+            <td class="border p-2">${s.ast_per_game}</td>
+            <td class="border p-2">${s.trb_per_game}</td>
+        </tr>`;
+        document.getElementById("seasonsBody").innerHTML += row;
+    });
+}
+
+// Guess Logic
+document.getElementById("submitGuess").addEventListener("click", () => {
+    const guess = document.getElementById("guessInput").value.trim().toLowerCase();
+    const resultText = document.getElementById("resultText");
+    const playerNameEl = document.getElementById("playerName");
+
+    if (!currentPlayerName) return;
+
+    if (guess === currentPlayerName.toLowerCase()) {
+        streak++;
+        resultText.textContent = `✅ Correct!`;
+        resultText.className = "mt-4 font-bold text-center text-xl text-green-600";
+    } else {
+        streak = 0;
+        resultText.textContent = `❌ Incorrect! It was ${currentPlayerName}`;
+        resultText.className = "mt-4 font-bold text-center text-xl text-red-600";
+    }
+
+    playerNameEl.textContent = currentPlayerName;
+    playerNameEl.className = "text-2xl font-black text-center mb-4 text-blue-700 uppercase tracking-normal";
+    document.getElementById("streak").textContent = streak;
+    document.getElementById("nextRound").style.display = "inline-block";
+    document.getElementById("submitGuess").disabled = true;
 });
 
-// ---------------------------
-// Guess Submission
-// ---------------------------
-submitBtn.addEventListener("click", () => {
-  const guess = guessInput.value.trim().toLowerCase();
-  if (!currentPlayerName) return;
-
-  if (guess && currentPlayerName.toLowerCase() === guess) {
-    streak++;
-    resultText.textContent = `✅ Correct! Streak: ${streak}`;
-    playerNameEl.textContent = currentPlayerName;
-    nextRoundBtn.style.display = "inline-block"; // Correct: hide next round
-  } else {
-    streak = 0;
-    resultText.textContent = `❌ Incorrect! The player was ${currentPlayerName}. Streak reset.`;
-    playerNameEl.textContent = currentPlayerName;
-    nextRoundBtn.style.display = "inline-block"; // Show next round
-  }
-
-  streakEl.textContent = streak;
-});
-
-// ---------------------------
 // Give Up
-// ---------------------------
-giveUpBtn.addEventListener("click", () => {
-  if (currentPlayerName) {
-    playerNameEl.textContent = currentPlayerName;
-    resultText.textContent = `😞 You gave up! The player was ${currentPlayerName}. Streak reset.`;
+document.getElementById("giveUp").addEventListener("click", () => {
+    if (!currentPlayerName) return;
     streak = 0;
-    streakEl.textContent = streak;
-    nextRoundBtn.style.display = "inline-block"; // Show next round
-  }
+    document.getElementById("streak").textContent = streak;
+    document.getElementById("playerName").textContent = currentPlayerName;
+    document.getElementById("playerName").className = "text-2xl font-black text-center mb-4 text-gray-700 uppercase tracking-normal";
+    document.getElementById("resultText").textContent = "You gave up!";
+    document.getElementById("nextRound").style.display = "inline-block";
 });
 
-// ---------------------------
-// Next Round
-// ---------------------------
-nextRoundBtn.addEventListener("click", () => {
-  loadRandomPlayer();
-  nextRoundBtn.style.display = "none"; // Hide again
+document.getElementById("nextRound").addEventListener("click", loadRandomPlayer);
+
+// Autocomplete
+const guessInput = document.getElementById("guessInput");
+const suggestionsDiv = document.getElementById("suggestions");
+
+guessInput.addEventListener("input", () => {
+    const query = guessInput.value.toLowerCase().trim();
+    if (query.length < 3) {
+        suggestionsDiv.classList.add("hidden");
+        return;
+    }
+
+    const matches = playerNames
+        .filter(name => name.toLowerCase().includes(query))
+        .slice(0, 10);
+
+    if (matches.length === 0) {
+        suggestionsDiv.classList.add("hidden");
+        return;
+    }
+
+    suggestionsDiv.innerHTML = matches
+        .map(name => `<div class="p-2 hover:bg-gray-200 cursor-pointer" onclick="selectSuggestion('${name.replace(/'/g, "\\'")}')">${name}</div>`)
+        .join("");
+    suggestionsDiv.classList.remove("hidden");
 });
 
-// ---------------------------
-// Helpers
-// ---------------------------
-function escapeHtmlAttr(s) {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;")
-          .replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function selectSuggestion(name) {
+    guessInput.value = name;
+    suggestionsDiv.classList.add("hidden");
 }
 
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-// ---------------------------
 // Initial Load
-// ---------------------------
-loadRandomPlayer();
+window.onload = loadRandomPlayer;

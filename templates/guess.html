@@ -6,9 +6,7 @@
   <title>NBA Guessr - Game</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-
 <body class="bg-gray-100 min-h-screen flex flex-col items-center p-8">
-
   <nav class="w-full max-w-2xl mb-4">
     <a href="/" class="text-blue-600 hover:underline font-semibold">← Back to Menu</a>
   </nav>
@@ -38,8 +36,7 @@
               <th class="border p-2">RPG</th>
             </tr>
           </thead>
-          <tbody id="seasonsBody" class="text-center font-mono">
-             </tbody>
+          <tbody id="seasonsBody" class="text-center font-mono"></tbody>
         </table>
       </div>
     </div>
@@ -48,24 +45,16 @@
       <div class="relative">
         <input type="text" id="guessInput" placeholder="Start typing player name..."
                class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-blue-500 outline-none transition-all" autocomplete="off">
-        
         <div id="suggestions" class="absolute z-10 w-full border border-gray-300 rounded-md mt-1 bg-white max-h-48 overflow-y-auto hidden shadow-xl"></div>
       </div>
 
       <div class="flex gap-2 mt-4">
-        <button id="submitGuess" class="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-bold transition-all flex-1 shadow-md">
-          SUBMIT
-        </button>
-        <button id="giveUp" class="bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 font-bold transition-all flex-1 shadow-md">
-          GIVE UP
-        </button>
-        <button id="nextRound" class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-bold transition-all flex-1 shadow-md" style="display:none;">
-          NEXT
-        </button>
+        <button id="submitGuess" class="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-bold flex-1">SUBMIT</button>
+        <button id="giveUp" class="bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 font-bold flex-1">GIVE UP</button>
+        <button id="nextRound" class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-bold flex-1" style="display:none;">NEXT ROUND</button>
       </div>
 
-      <div id="resultText" class="mt-4 font-bold text-center text-xl min-h-[1.5em]"></div>
-      
+      <div id="resultText" class="mt-4 font-bold text-center text-xl"></div>
       <div class="mt-4 flex justify-center">
         <div class="bg-gray-100 px-6 py-2 rounded-full font-bold text-gray-600">
           🔥 Streak: <span id="streak" class="text-blue-600">0</span>
@@ -75,13 +64,5 @@
   </div>
 
   <script src="/static/game.js"></script>
-  <script>
-    // This triggers the first round immediately when the page loads
-    window.onload = () => {
-        if (typeof loadRandomPlayer === "function") {
-            loadRandomPlayer();
-        }
-    };
-  </script>
 </body>
 </html>
