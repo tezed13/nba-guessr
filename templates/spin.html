@@ -6,16 +6,11 @@
     <style>
         body { background-color: #000000; color: #ffffff; }
         .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
-        .slot-reel { animation: spin 1.5s cubic-bezier(0.45, 0.05, 0.55, 0.95);  transition: all 0.1s ease-in-out;}
+        .slot-reel { transition: all 0.1s ease-in-out;}
         .shuffling {
-    color: #444 !important; /* Dim the text while shuffling */
-    filter: blur(1.5px);    /* Motion blur effect */
-    transition: none;       /* Disable transitions during rapid shuffle */
-}
-        @keyframes spin {
-            0% { transform: translateY(0); filter: blur(0); }
-            50% { transform: translateY(-300px); filter: blur(4px); }
-            100% { transform: translateY(0); filter: blur(0); }
+            color: #444 !important; 
+            filter: blur(1.5px);    
+            transition: none;       
         }
     </style>
 </head>
@@ -78,126 +73,114 @@
     </div>
 
     <script>
+        // --- 1. DATA ARRAYS (ESSENTIAL FOR ANIMATION) ---
+        const STAT_OPTIONS = [
+            "Points Per Game", "Rebounds Per Game", "Assists Per Game", "Steals Per Game",
+            "Blocks Per Game", "Turnovers Per Game", "Fouls Per Game", "Free Attempts Per Game",
+            "Three Pointers Attempted Per Game", "Shots Attempted Per Game", "Minutes Per Game"
+        ];
+        const POS_OPTIONS = ["PG", "SG", "SF", "PF", "C"];
+        const CONF_OPTIONS = ["Eastern", "Western"];
+
         let currentWinner = "";
         let spinStreak = 0;
         let playerNames = [];
         
-        // Audio Setup
         const spinSfx = new Audio('/static/spin.mp3');
         const winSfx = new Audio('/static/win.mp3');
 
         fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
 
+        async function triggerSpin() {
+            if (spinSfx) spinSfx.play();
+            document.getElementById('resultMsg').textContent = "";
+            document.getElementById('correctName').textContent = "";
+            document.getElementById('guessInput').value = "";
+            document.getElementById('submitBtn').classList.remove('hidden');
+            document.getElementById('spinBtn').classList.add('hidden');
 
+            // 2. SHUFFLE EFFECT
+            const shuffleInterval = setInterval(() => {
+                const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
+                document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
+                document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
+                document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
+                document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
+                document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
+                
+                document.querySelectorAll('.slot-reel').forEach(el => el.classList.add('shuffling'));
+            }, 80); 
 
-async function triggerSpin() {
-    // 1. Reset UI & Play Sound
-    if (spinSfx) spinSfx.play();
-    document.getElementById('resultMsg').textContent = "";
-    document.getElementById('correctName').textContent = "";
-    document.getElementById('guessInput').value = "";
-    document.getElementById('submitBtn').classList.remove('hidden');
-    document.getElementById('spinBtn').classList.add('hidden');
+            try {
+                const res = await fetch('/spin_data');
+                const data = await res.json();
+                currentWinner = data.winner;
 
-    // 2. Start the "Flicker" effect for ALL columns
-    const shuffleInterval = setInterval(() => {
-        // Column 1: Stat Name and a random Stat Value
-        const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
-        document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
-        document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
+                setTimeout(() => {
+                    clearInterval(shuffleInterval);
+                    document.querySelectorAll('.slot-reel').forEach(el => el.classList.remove('shuffling'));
 
-        // Column 2: Random Year
-        document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
-
-        // Column 3: Random Position
-        document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
-
-        // Column 4: Random Conference
-        document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
-        
-        // Add a "shuffling" class for a slight blur/dim effect if you have the CSS
-        document.querySelectorAll('.slot-reel').forEach(el => el.classList.add('shuffling'));
-    }, 80); 
-
-    try {
-        // 3. Fetch the actual winner from the backend
-        const res = await fetch('/spin_data');
-        const data = await res.json();
-        currentWinner = data.winner;
-
-        // 4. Stop shuffling after 2 seconds and land on the real values
-        setTimeout(() => {
-            clearInterval(shuffleInterval);
-            
-            // Remove the shuffling blur
-            document.querySelectorAll('.slot-reel').forEach(el => el.classList.remove('shuffling'));
-
-            // Land on the REAL data from the server
-            document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
-            document.getElementById('stat-val').textContent = data.clues.stat_val;
-            document.getElementById('year-val').textContent = data.clues.season;
-            document.getElementById('pos-val').textContent = data.clues.pos;
-            document.getElementById('conf-val').textContent = data.clues.conf;
-            
-            if (spinSfx) {
-                spinSfx.pause();
-                spinSfx.currentTime = 0;
+                    // 3. LAND ON REAL DATA
+                    document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
+                    document.getElementById('stat-val').textContent = data.clues.stat_val;
+                    document.getElementById('year-val').textContent = data.clues.season;
+                    document.getElementById('pos-val').textContent = data.clues.pos;
+                    document.getElementById('conf-val').textContent = data.clues.conf;
+                    
+                    if (spinSfx) {
+                        spinSfx.pause();
+                        spinSfx.currentTime = 0;
+                    }
+                }, 2000); 
+            } catch (err) {
+                console.error("Spin error:", err);
+                clearInterval(shuffleInterval);
             }
-        }, 2000); 
-    } catch (err) {
-        console.error("Spin error:", err);
-        clearInterval(shuffleInterval);
-    }
-}
-
-    // --- Button Actions ---
-    document.getElementById('submitBtn').onclick = () => {
-        const guess = document.getElementById('guessInput').value.trim();
-        const msg = document.getElementById('resultMsg');
-        
-        if (guess.toLowerCase() === currentWinner.toLowerCase()) {
-            spinStreak++;
-            winSfx.play();
-            msg.textContent = "SWISH!";
-            msg.className = "text-2xl font-black italic text-green-500 uppercase";
-        } else {
-            spinStreak = 0;
-            msg.textContent = "AIRBALL!";
-            msg.className = "text-2xl font-black italic text-red-500 uppercase";
-            document.getElementById('correctName').textContent = `Correct answer: ${currentWinner}`;
         }
 
-        document.getElementById('streakVal').textContent = spinStreak;
-        document.getElementById('submitBtn').classList.add('hidden');
-        document.getElementById('spinBtn').classList.remove('hidden');
-    };
+        document.getElementById('submitBtn').onclick = () => {
+            const guess = document.getElementById('guessInput').value.trim();
+            const msg = document.getElementById('resultMsg');
+            if (guess.toLowerCase() === currentWinner.toLowerCase()) {
+                spinStreak++;
+                winSfx.play();
+                msg.textContent = "SWISH!";
+                msg.className = "text-2xl font-black italic text-green-500 uppercase";
+            } else {
+                spinStreak = 0;
+                msg.textContent = "AIRBALL!";
+                msg.className = "text-2xl font-black italic text-red-500 uppercase";
+                document.getElementById('correctName').textContent = `Correct answer: ${currentWinner}`;
+            }
+            document.getElementById('streakVal').textContent = spinStreak;
+            document.getElementById('submitBtn').classList.add('hidden');
+            document.getElementById('spinBtn').classList.remove('hidden');
+        };
 
-    // --- Autocomplete ---
-    const guessInput = document.getElementById('guessInput');
-    const suggestionsDiv = document.getElementById('suggestions');
-    
-    guessInput.addEventListener('input', () => {
-        const query = guessInput.value.toLowerCase().trim();
-        if (query.length < 2) { suggestionsDiv.classList.add('hidden'); return; }
-        const matches = playerNames.filter(n => n.toLowerCase().includes(query)).slice(0, 8);
-        if (matches.length === 0) { suggestionsDiv.classList.add('hidden'); return; }
+        const guessInput = document.getElementById('guessInput');
+        const suggestionsDiv = document.getElementById('suggestions');
         
-        suggestionsDiv.innerHTML = matches.map(n => `
-            <div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white font-bold" 
-                 onclick="selectName('${n.replace(/'/g, "\\'")}')">
-                ${n}
-            </div>
-        `).join("");
-        suggestionsDiv.classList.remove('hidden');
-    });
+        guessInput.addEventListener('input', () => {
+            const query = guessInput.value.toLowerCase().trim();
+            if (query.length < 2) { suggestionsDiv.classList.add('hidden'); return; }
+            const matches = playerNames.filter(n => n.toLowerCase().includes(query)).slice(0, 8);
+            if (matches.length === 0) { suggestionsDiv.classList.add('hidden'); return; }
+            suggestionsDiv.innerHTML = matches.map(n => `
+                <div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white font-bold" 
+                     onclick="selectName('${n.replace(/'/g, "\\'")}')">
+                    ${n}
+                </div>
+            `).join("");
+            suggestionsDiv.classList.remove('hidden');
+        });
 
-    function selectName(n) { 
-        guessInput.value = n; 
-        suggestionsDiv.classList.add('hidden'); 
-    }
+        function selectName(n) { 
+            guessInput.value = n; 
+            suggestionsDiv.classList.add('hidden'); 
+        }
 
-    document.getElementById('spinBtn').onclick = triggerSpin;
-    window.onload = triggerSpin;
-</script>
+        document.getElementById('spinBtn').onclick = triggerSpin;
+        window.onload = triggerSpin;
+    </script>
 </body>
 </html>
