@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import random
+from flask import Flask, request, jsonify
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -49,54 +50,55 @@ async def all_players():
 @app.route("/random_player")
 def random_player():
     try:
-        start_year = int(request.args.get('start_season', 1950))
+        # Get arguments from URL
+        start_year = int(request.args.get('start_season', 2000))
         end_year = int(request.args.get('end_season', 2025))
-        difficulty_types = request.args.get('types', 'starters').split(',')
+        types = request.args.get('types', 'starters').split(',')
 
-        # 1. Force columns to lowercase to avoid "GS" vs "gs" errors
-        stats_df.columns = [c.lower() for c in stats_df.columns]
+        # Clean column names immediately to avoid Case Sensitivity crashes
+        stats_df.columns = [c.strip().lower() for c in stats_df.columns]
 
-        # 2. Filter by Year Range
+        # 1. Filter by Year
         mask = (stats_df['season'] >= start_year) & (stats_df['season'] <= end_year)
-        temp_df = stats_df[mask]
+        pool = stats_df[mask]
 
-        # 3. Apply Difficulty Filters
-        diff_mask = pd.Series(False, index=temp_df.index)
-        
-        if 'starters' in difficulty_types:
-            # Lower the threshold to 30 or 40 to be safe for shorter seasons
-            diff_mask |= (temp_df['gs'] >= 40) 
-        if 'bench' in difficulty_types:
-            diff_mask |= (temp_df['gs'] >= 5) & (temp_df['gs'] < 40)
-        if 'endbench' in difficulty_types:
-            diff_mask |= (temp_df['gs'] < 5)
+        if pool.empty:
+            return jsonify({"error": "No data found for those years"}), 404
 
-        filtered_df = temp_df[diff_mask]
+        # 2. Filter by GS (Games Started)
+        # We use .get() to avoid crashing if 'gs' column is missing entirely
+        if 'gs' in pool.columns:
+            diff_mask = pd.Series(False, index=pool.index)
+            if 'starters' in types:
+                diff_mask |= (pool['gs'] >= 40)
+            if 'bench' in types:
+                diff_mask |= (pool['gs'] >= 5) & (pool['gs'] < 40)
+            if 'endbench' in types:
+                diff_mask |= (pool['gs'] < 5)
+            
+            filtered = pool[diff_mask]
+        else:
+            # Fallback if GS column doesn't exist in your CSV
+            filtered = pool
 
-        # 4. FALLBACK: If filters are too strict, just give any player from those years
-        if filtered_df.empty:
-            print("Filters too strict, falling back to year-only filter")
-            filtered_df = temp_df
+        # 3. Handle Empty Results
+        if filtered.empty:
+            filtered = pool # Just give any player if filter is too tight
 
-        if filtered_df.empty:
-            return jsonify({"error": "No players found in this year range"}), 404
+        # 4. Select Player and their Career Stats
+        random_name = random.choice(filtered['player'].unique())
+        career_stats = stats_df[stats_df['player'] == random_name].sort_values('season', ascending=False)
 
-        # Pick random player
-        random_name = random.choice(filtered_df['player'].unique())
-        
-        # Get all career years for that player to show in the table
-        player_career = stats_df[stats_df['player'] == random_name].sort_values('season', ascending=False)
-        
         return jsonify({
             "player_name": random_name,
-            "seasons": player_career.to_dict(orient='records')
+            "seasons": career_stats.to_dict(orient='records')
         })
 
     except Exception as e:
-        print(f"Error in random_player: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
+        # This prints the REAL error to your Render/Python console
+        print(f"CRITICAL ERROR: {str(e)}")
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+    
 # List of categories you provided
 CATEGORIES = [
     "mp_per_game", "fg_per_game", "fga_per_game", "fg_percent", 
