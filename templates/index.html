@@ -3,67 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Arcade</title>
+  <title>NBA Arcade - Home</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-6">
+<body class="bg-black text-white min-h-screen flex flex-col items-center justify-center p-6 font-sans">
 
-  <h1 class="text-5xl font-black mb-10 text-blue-800 italic">NBA ARCADE</h1>
+  <h1 class="text-7xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-600 italic tracking-tighter shadow-gray-500/50">
+    NBA ARCADE
+  </h1>
+  <p class="text-gray-500 mb-12 text-lg uppercase tracking-widest font-semibold">Select Your Game Mode</p>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-5xl">
     
-    <div class="bg-white p-8 rounded-3xl shadow-xl border-t-4 border-blue-600">
-      <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center gap-2">
-        🏀 NBA Guessr
+    <div class="bg-[#111] p-10 rounded-[2.5rem] border border-gray-800 hover:border-blue-500 transition-all group shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-10 -right-10 w-32 h-32 bg-blue-600/10 rounded-full blur-3xl group-hover:bg-blue-600/20 transition-all"></div>
+      
+      <h2 class="text-4xl font-black mb-4 text-blue-500 italic flex items-center gap-3">
+        🏀 GUESSR
       </h2>
-      <p class="text-gray-600 mb-6 text-sm">Can you name the player based on their season-by-season stats?</p>
+      <p class="text-gray-400 mb-8 text-sm leading-relaxed">
+        Study the stats, analyze the career path, and name the player. The ultimate test for basketball junkies.
+      </p>
 
-      <form id="playerForm" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Season Range</label>
-          <div class="flex gap-2">
-            <input id="startSeason" type="number" value="2000" class="w-1/2 border rounded-lg p-2 text-sm">
-            <input id="endSeason" type="number" value="2025" class="w-1/2 border rounded-lg p-2 text-sm">
+      <form id="playerForm" class="space-y-6">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 tracking-widest">From</label>
+            <input id="startSeason" type="number" value="2000" 
+                   class="w-full bg-black border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none transition-all">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 tracking-widest">To</label>
+            <input id="endSeason" type="number" value="2025" 
+                   class="w-full bg-black border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none transition-all">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Difficulty (Pool)</label>
-          <div class="flex flex-col gap-1 text-sm">
-            <label class="flex items-center gap-2"><input type="checkbox" value="starters" checked> Starters</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="bench"> Bench Players</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="endbench"> Role Players</label>
+          <label class="block text-[10px] font-bold uppercase text-gray-500 mb-3 tracking-widest">Player Pool</label>
+          <div class="flex flex-wrap gap-4 text-xs font-bold">
+            <label class="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white transition">
+              <input type="checkbox" value="starters" checked class="accent-blue-500 w-4 h-4"> Starters
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white transition">
+              <input type="checkbox" value="bench" class="accent-blue-500 w-4 h-4"> Bench
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white transition">
+              <input type="checkbox" value="endbench" class="accent-blue-500 w-4 h-4"> Deep Bench
+            </label>
           </div>
         </div>
 
-        <button type="button" id="playGuessr" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-md">
-          START GUESSR
+        <button type="button" id="playGuessr" 
+                class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/20 uppercase tracking-widest text-sm active:scale-95">
+          Play Guessr
         </button>
       </form>
     </div>
 
-    <div class="bg-white p-8 rounded-3xl shadow-xl border-t-4 border-yellow-500 flex flex-col justify-between">
+    <div class="bg-[#111] p-10 rounded-[2.5rem] border border-gray-800 hover:border-yellow-500 transition-all group shadow-2xl relative overflow-hidden flex flex-col justify-between">
+      <div class="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl group-hover:bg-yellow-500/20 transition-all"></div>
+
       <div>
-        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center gap-2">
-          🎰 NBA Spin
+        <h2 class="text-4xl font-black mb-4 text-yellow-500 italic flex items-center gap-3">
+          🎰 SPIN
         </h2>
-        <p class="text-gray-600 mb-6 text-sm">A "Slot Machine" style challenge. Find the leader for the specific stat shown in the reels!</p>
+        <p class="text-gray-400 mb-8 text-sm leading-relaxed">
+          The slot machine picks a Category, Season, Position, and Conference. Do you know who led the pack?
+        </p>
         
-        <div class="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 mb-6">
-          <ul class="text-xs text-gray-500 space-y-2">
-            <li>✅ Covers all major stat categories</li>
-            <li>✅ Qualified players (>45 G, >12 MPG)</li>
-            <li>✅ Test your historical knowledge</li>
-          </ul>
+        <div class="space-y-3 mb-8">
+            <div class="flex items-center gap-3 text-xs font-bold text-gray-500 border-b border-gray-800 pb-3">
+                <span class="text-yellow-500">✔</span> DAILY CHALLENGES
+            </div>
+            <div class="flex items-center gap-3 text-xs font-bold text-gray-500 border-b border-gray-800 pb-3">
+                <span class="text-yellow-500">✔</span> STREAK SYSTEM
+            </div>
+            <div class="flex items-center gap-3 text-xs font-bold text-gray-500 border-b border-gray-800 pb-3">
+                <span class="text-yellow-500">✔</span> SLOT ANIMATIONS
+            </div>
         </div>
       </div>
 
-      <a href="/spin" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl transition-all shadow-md text-center">
-        PLAY SPIN
+      <a href="/spin" 
+         class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-2xl transition-all shadow-lg shadow-yellow-900/20 uppercase tracking-widest text-center text-sm active:scale-95">
+        Start Spinning
       </a>
     </div>
 
   </div>
+
+  <footer class="mt-16 text-gray-600 text-[10px] font-bold tracking-[0.2em] uppercase">
+    NBA ARCADE VERSION 2.0 &bull; 2026
+  </footer>
 
   <script>
     document.getElementById("playGuessr").addEventListener("click", () => {
@@ -73,7 +105,11 @@
         .map(cb => cb.value)
         .join(",");
 
-      // This sends the user to the actual game page with their chosen settings
+      if (!types) {
+        alert("Please select at least one player type difficulty!");
+        return;
+      }
+
       window.location.href = `/guess?start_season=${start}&end_season=${end}&types=${types}`;
     });
   </script>
