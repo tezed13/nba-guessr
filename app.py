@@ -119,45 +119,41 @@ TEAM_TO_CONF = {
 @app.get("/spin_data")
 async def spin_data():
     if stats_df.empty:
-        return JSONResponse({"error": "No data"}, status_code=500)
+        return JSONResponse({"error": "CSV not loaded"}, status_code=500)
 
-    # 1. Pick a random season and category
+    # 1. Selection Logic (League-wide)
     available_seasons = stats_df["season"].unique().tolist()
     chosen_season = random.choice(available_seasons)
     
-    # Define the stats we want to track
     stat_map = {
         "pts_per_game": "Points Per Game",
         "trb_per_game": "Rebounds Per Game",
         "ast_per_game": "Assists Per Game",
         "stl_per_game": "Steals Per Game",
-        "blk_per_game": "Blocks Per Game",
-        "mp_per_game": "Minutes Per Game"
+        "blk_per_game": "Blocks Per Game"
     }
     chosen_stat_key = random.choice(list(stat_map.keys()))
     
-    # 2. Filter data for that season ONLY
-    # We apply a basic qualification filter (e.g., played > 40 games) 
-    # to avoid bench players with 1 game skewed stats
-    season_df = stats_df[
-        (stats_df["season"] == chosen_season) & 
-        (stats_df["g"] > 40)
-    ].copy()
+    # Filter for qualified players in that season
+    season_df = stats_df[(stats_df["season"] == chosen_season) & (stats_df["g"] > 40)].copy()
+    if season_df.empty: return await spin_data()
 
-    if season_df.empty:
-        return await spin_data() # Retry if no one qualifies
-
-    # 3. Find the leader
+    # Find the league-wide leader
     leader_row = season_df.sort_values(by=chosen_stat_key, ascending=False).iloc[0]
     
+    # 2. Extract Hint Data
+    player_pos = leader_row["pos"]
+    team_abbrev = leader_row["tm"]
+    player_conf = TEAM_TO_CONF.get(team_abbrev, "NBA")
+
     return {
         "winner": leader_row["player"],
         "clues": {
             "stat_name": stat_map[chosen_stat_key],
             "stat_val": str(leader_row[chosen_stat_key]),
             "season": str(chosen_season),
-            "pos": "ALL", # Visual indicator that position doesn't matter
-            "conf": "NBA"  # Visual indicator that conference doesn't matter
+            "pos": player_pos,   # Now showing the specific position
+            "conf": player_conf  # Now showing the specific conference
         }
     }
 @app.get("/spin", response_class=HTMLResponse)
