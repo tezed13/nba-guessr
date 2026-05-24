@@ -502,13 +502,18 @@
         const input = document.getElementById('guessInput');
         const suggs = document.getElementById('suggestions');
 
+        // Strips diacritics so "vuc" matches "Vučević" etc.
+        function norm(s) {
+            return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        }
+
         function matchPlayers(val) {
-            const q = val.toLowerCase().trim();
+            const q = norm(val.trim());
             if (q.length < 2) return [];
             const lastNameMatches  = [];
             const firstNameMatches = [];
             allPlayers.forEach(p => {
-                const parts = p.toLowerCase().split(' ');
+                const parts = norm(p).split(' ');
                 const firstName = parts[0] || '';
                 const lastName  = parts.slice(1).join(' ') || '';
                 if (lastName.startsWith(q))       lastNameMatches.push(p);
@@ -516,7 +521,6 @@
             });
             return [...lastNameMatches, ...firstNameMatches];
         }
-
         input.addEventListener('input', () => {
             const matches = matchPlayers(input.value);
             if (!matches.length) { suggs.classList.add('hidden'); return; }

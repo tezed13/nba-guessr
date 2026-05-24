@@ -384,18 +384,22 @@
 
         // ── Autocomplete ──────────────────────────────────────
         const input = document.getElementById('guessInput');
-        const suggs = document.        input.addEventListener('input', () => {
-            const q = input.value.trim();
+        const suggs = document.        // Strips diacritics so "vuc" matches "Vučević" etc.
+        function norm(s) {
+            return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        }
+
+        input.addEventListener('input', () => {
+            const q = norm(input.value.trim());
             if (q.length < 2) { suggs.classList.add('hidden'); return; }
-            const ql = q.toLowerCase();
             const lastNameMatches  = [];
             const firstNameMatches = [];
             playerNames.forEach(p => {
-                const parts = p.toLowerCase().split(' ');
+                const parts = norm(p).split(' ');
                 const firstName = parts[0] || '';
                 const lastName  = parts.slice(1).join(' ') || '';
-                if (lastName.startsWith(ql))       lastNameMatches.push(p);
-                else if (firstName.startsWith(ql)) firstNameMatches.push(p);
+                if (lastName.startsWith(q))       lastNameMatches.push(p);
+                else if (firstName.startsWith(q)) firstNameMatches.push(p);
             });
             const matches = [...lastNameMatches, ...firstNameMatches];
             if (!matches.length) { suggs.classList.add('hidden'); return; }
@@ -404,9 +408,6 @@
                 return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + n + '</div>';
             }).join('');
             suggs.classList.remove('hidden');
-        });
-
-.remove('hidden');
         });
 
         function selectName(n) { input.value = n; suggs.classList.add('hidden'); }
