@@ -459,14 +459,19 @@
                             <td class="tm">${fmt(s.team)}</td>
                             <td>${fmt(s.g)}</td>
                             <td>${fmt(s.gs)}</td>
-                            <td>${fmt(s.mp_per_game ?? s.mp)}</td>
-                            <td class="pts">${fmt(s.pts_per_game ?? s.pts)}</td>
-                            <td>${fmt(s.trb_per_game ?? s.trb)}</td>
-                            <td>${fmt(s.ast_per_game ?? s.ast)}</td>
+                            <td>${fmt(s.mp_per_game)}</td>
+                            <td class="pts">${fmt(s.pts_per_game)}</td>
+                            <td>${fmt(s.trb_per_game)}</td>
+                            <td>${fmt(s.ast_per_game)}</td>
+                            <td>${fmt(s.blk_per_game)}</td>
+                            <td>${fmt(s.stl_per_game)}</td>
+                            <td>${fmt(s.tov_per_game)}</td>
+                            <td>${fmt(s.x3pa_per_game)}</td>
+                            <td>${fmtPct(s.x3p_percent)}</td>
                         </tr>`);
                 });
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
             }
         }
 
