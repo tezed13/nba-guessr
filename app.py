@@ -42,7 +42,8 @@ try:
     def inches_to_ft(val):
         try:
             total = int(val)
-            return f"{total // 12}'{total % 12}""
+            feet, inches = total // 12, total % 12
+            return str(feet) + "'" + str(inches) + '"'
         except:
             return None
 
