@@ -6,24 +6,12 @@
     <style>
         body { background-color: #000000; color: #ffffff; }
         .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
-        .shuffling {
-            color: #444 !important;    
-            transition: none;       
+        .slot-reel { transition: none; }
+        .landed { animation: land-pop 0.2s ease-out; }
+        @keyframes land-pop {
+            0% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
-        .slot-reel {
-    /* Remove any transition to make the "click" look instant and mechanical */
-    transition: none; 
-}
-
-/* Optional: Add a subtle 'pop' animation when it lands */
-.landed {
-    animation: land-pop 0.2s ease-out;
-}
-
-@keyframes land-pop {
-    0% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
     </style>
 </head>
 <body class="min-h-screen p-6 flex flex-col items-center">
@@ -63,12 +51,13 @@
     <div class="w-full max-w-lg bg-gray-900 p-8 rounded-3xl border border-gray-800 shadow-2xl">
         <div class="relative">
             <input type="text" id="guessInput" placeholder="Name the player..." 
-                   class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-yellow-500 outline-none transition-all text-lg font-bold text-white">
+                   class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-yellow-500 outline-none transition-all text-lg font-bold text-white"
+                   disabled>
             <div id="suggestions" class="absolute z-10 w-full border border-gray-800 rounded-md mt-1 bg-gray-900 max-h-48 overflow-y-auto hidden"></div>
         </div>
 
         <div class="flex gap-2 mt-4">
-            <button id="submitBtn" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl transition-all">SUBMIT</button>
+            <button id="submitBtn" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl transition-all" disabled>SUBMIT</button>
             <button id="spinBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all hidden">NEXT SPIN</button>
         </div>
 
@@ -85,99 +74,113 @@
     </div>
 
     <script>
-        // --- 1. DATA ARRAYS (ESSENTIAL FOR ANIMATION) ---
         const STAT_OPTIONS = [
             "Points Per Game", "Rebounds Per Game", "Assists Per Game", "Steals Per Game",
-            "Blocks Per Game", "Turnovers Per Game", "Fouls Per Game", "Free Attempts Per Game",
-            "Three Pointers Attempted Per Game", "Shots Attempted Per Game", "Minutes Per Game"
+            "Blocks Per Game", "Turnovers Per Game", "Fouls Per Game", "Free Throw Attempts Per Game",
+            "Three-Pointers Attempted Per Game", "Shots Attempted Per Game", "Minutes Per Game"
         ];
         const POS_OPTIONS = ["PG", "SG", "SF", "PF", "C"];
         const CONF_OPTIONS = ["Eastern", "Western"];
 
+        // currentWinner and currentClues are set together only when fetch completes
+        // Submit is disabled until then — no stale data possible
         let currentWinner = "";
         let spinStreak = 0;
         let playerNames = [];
-        
+        let isSpinning = false;
+
         const spinSfx = new Audio('/static/spin.mp3');
         const winSfx = new Audio('/static/win.mp3');
+        const clickSfx = new Audio('/static/click.mp3');
 
         fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
 
-// 1. Add the click sound to your Audio setup
-const clickSfx = new Audio('/static/click.mp3');
+        function setInputEnabled(enabled) {
+            document.getElementById('guessInput').disabled = !enabled;
+            document.getElementById('submitBtn').disabled = !enabled;
+        }
 
-async function triggerSpin() {
-    // Reset UI
-    if (spinSfx) spinSfx.play();
-    document.getElementById('resultMsg').textContent = "";
-    document.getElementById('correctName').textContent = "";
-    document.getElementById('guessInput').value = "";
-    document.getElementById('submitBtn').classList.remove('hidden');
-    document.getElementById('spinBtn').classList.add('hidden');
+        async function triggerSpin() {
+            if (isSpinning) return;
+            isSpinning = true;
 
-    // 2. Start Shuffling
-    const shuffleInterval = setInterval(() => {
-        // Randomize all fields
-        const randomStatName = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)];
-        document.getElementById('stat-label').textContent = randomStatName.toUpperCase();
-        document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
-        document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
-        document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
-        document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
-    }, 60); // Faster flicker
+            // Lock input until data arrives and animation finishes
+            setInputEnabled(false);
+            currentWinner = "";
 
-    try {
-        const res = await fetch('/spin_data');
-        const data = await res.json();
-        currentWinner = data.winner;
+            document.getElementById('resultMsg').textContent = "";
+            document.getElementById('correctName').textContent = "";
+            document.getElementById('guessInput').value = "";
+            document.getElementById('suggestions').classList.add('hidden');
+            document.getElementById('submitBtn').classList.remove('hidden');
+            document.getElementById('spinBtn').classList.add('hidden');
 
-        // 3. Staggered Stopping (Left to Right)
-        
-        // STOP REEL 1 (CATEGORY & STAT) - at 1.0s
-        setTimeout(() => {
-            document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
-            document.getElementById('stat-val').textContent = data.clues.stat_val;
-            if (clickSfx) clickSfx.play();
-        }, 1000);
+            if (spinSfx) { spinSfx.currentTime = 0; spinSfx.play(); }
 
-        // STOP REEL 2 (SEASON) - at 1.4s
-        setTimeout(() => {
-            document.getElementById('year-val').textContent = data.clues.season;
-            if (clickSfx) clickSfx.cloneNode(true).play(); // cloneNode allows sounds to overlap
-        }, 1400);
+            // Start shuffle animation
+            const shuffleInterval = setInterval(() => {
+                document.getElementById('stat-label').textContent = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)].toUpperCase();
+                document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
+                document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
+                document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
+                document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
+            }, 60);
 
-        // STOP REEL 3 (POSITION) - at 1.8s
-        setTimeout(() => {
-            document.getElementById('pos-val').textContent = data.clues.pos;
-            if (clickSfx) clickSfx.cloneNode(true).play();
-        }, 1800);
+            try {
+                // Fetch real data — await BEFORE stopping animation
+                const res = await fetch('/spin_data');
+                if (!res.ok) throw new Error("Server error");
+                const data = await res.json();
 
-        // STOP REEL 4 (CONFERENCE) - at 2.2s
-        setTimeout(() => {
-            clearInterval(shuffleInterval); // Stop the loop entirely
-            document.getElementById('conf-val').textContent = data.clues.conf;
-            
-            if (clickSfx) clickSfx.cloneNode(true).play();
-            if (spinSfx) {
-                spinSfx.pause();
-                spinSfx.currentTime = 0;
+                // Stop reels left to right with real data
+                setTimeout(() => {
+                    document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
+                    document.getElementById('stat-val').textContent = data.clues.stat_val;
+                    clickSfx.cloneNode(true).play();
+                }, 300);
+
+                setTimeout(() => {
+                    document.getElementById('year-val').textContent = data.clues.season;
+                    clickSfx.cloneNode(true).play();
+                }, 700);
+
+                setTimeout(() => {
+                    document.getElementById('pos-val').textContent = data.clues.pos;
+                    clickSfx.cloneNode(true).play();
+                }, 1100);
+
+                setTimeout(() => {
+                    clearInterval(shuffleInterval);
+                    document.getElementById('conf-val').textContent = data.clues.conf;
+                    clickSfx.cloneNode(true).play();
+                    if (spinSfx) { spinSfx.pause(); spinSfx.currentTime = 0; }
+
+                    // Only NOW set the winner and unlock input
+                    currentWinner = data.winner;
+                    setInputEnabled(true);
+                    isSpinning = false;
+                }, 1500);
+
+            } catch (err) {
+                console.error("Spin error:", err);
+                clearInterval(shuffleInterval);
+                document.getElementById('stat-label').textContent = "ERROR";
+                isSpinning = false;
+                setInputEnabled(false);
             }
-        }, 2200);
-
-    } catch (err) {
-        console.error("Spin error:", err);
-        clearInterval(shuffleInterval);
-    }
-}
+        }
 
         document.getElementById('submitBtn').onclick = () => {
+            if (!currentWinner) return; // safety guard
             const guess = document.getElementById('guessInput').value.trim();
             const msg = document.getElementById('resultMsg');
+
             if (guess.toLowerCase() === currentWinner.toLowerCase()) {
                 spinStreak++;
                 winSfx.play();
                 msg.textContent = "SWISH!";
                 msg.className = "text-2xl font-black italic text-green-500 uppercase";
+                document.getElementById('correctName').textContent = "";
             } else {
                 spinStreak = 0;
                 msg.textContent = "AIRBALL!";
@@ -191,7 +194,7 @@ async function triggerSpin() {
 
         const guessInput = document.getElementById('guessInput');
         const suggestionsDiv = document.getElementById('suggestions');
-        
+
         guessInput.addEventListener('input', () => {
             const query = guessInput.value.toLowerCase().trim();
             if (query.length < 2) { suggestionsDiv.classList.add('hidden'); return; }
@@ -206,9 +209,9 @@ async function triggerSpin() {
             suggestionsDiv.classList.remove('hidden');
         });
 
-        function selectName(n) { 
-            guessInput.value = n; 
-            suggestionsDiv.classList.add('hidden'); 
+        function selectName(n) {
+            guessInput.value = n;
+            suggestionsDiv.classList.add('hidden');
         }
 
         document.getElementById('spinBtn').onclick = triggerSpin;
