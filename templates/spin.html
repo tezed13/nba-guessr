@@ -384,7 +384,8 @@
 
         // ── Autocomplete ──────────────────────────────────────
         const input = document.getElementById('guessInput');
-        const suggs = document.        // Strips diacritics so "vuc" matches "Vučević" etc.
+        const suggs = document.getElementById('suggestions');
+
         function norm(s) {
             return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
         }
@@ -404,7 +405,7 @@
             const matches = [...lastNameMatches, ...firstNameMatches];
             if (!matches.length) { suggs.classList.add('hidden'); return; }
             suggs.innerHTML = matches.map(n => {
-                const safe = n.replace(/\/g, '\\').replace(/'/g, "\'");
+                const safe = n.replace(/\\/g, '\\\\').replace(/'/g, "\'");
                 return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + n + '</div>';
             }).join('');
             suggs.classList.remove('hidden');
