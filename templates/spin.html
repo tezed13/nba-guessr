@@ -93,8 +93,9 @@
         #suggestions {
             position: absolute; z-index: 30; width: 100%;
             background: #18181b; border: 1.5px solid #27272a;
-            border-radius: 10px; margin-top: 6px;
-            overflow-y: auto; max-height: 200px;
+            border-radius: 10px;
+            bottom: calc(100% + 6px); top: auto;
+            overflow-y: auto; max-height: 320px;
         }
         .sug-item {
             padding: 11px 16px; font-size: 14px; font-weight: 600;
@@ -383,17 +384,29 @@
 
         // ── Autocomplete ──────────────────────────────────────
         const input = document.getElementById('guessInput');
-        const suggs = document.getElementById('suggestions');
-
-        input.addEventListener('input', () => {
-            const q = input.value.toLowerCase().trim();
+        const suggs = document.        input.addEventListener('input', () => {
+            const q = input.value.trim();
             if (q.length < 2) { suggs.classList.add('hidden'); return; }
-            const matches = playerNames.filter(n => n.toLowerCase().includes(q)).slice(0, 8);
+            const ql = q.toLowerCase();
+            const lastNameMatches  = [];
+            const firstNameMatches = [];
+            playerNames.forEach(p => {
+                const parts = p.toLowerCase().split(' ');
+                const firstName = parts[0] || '';
+                const lastName  = parts.slice(1).join(' ') || '';
+                if (lastName.startsWith(ql))       lastNameMatches.push(p);
+                else if (firstName.startsWith(ql)) firstNameMatches.push(p);
+            });
+            const matches = [...lastNameMatches, ...firstNameMatches];
             if (!matches.length) { suggs.classList.add('hidden'); return; }
-            suggs.innerHTML = matches.map(n =>
-                `<div class="sug-item" onclick="selectName('${n.replace(/'/g,"\\'")}')">` + n + `</div>`
-            ).join('');
+            suggs.innerHTML = matches.map(n => {
+                const safe = n.replace(/\/g, '\\').replace(/'/g, "\'");
+                return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + n + '</div>';
+            }).join('');
             suggs.classList.remove('hidden');
+        });
+
+.remove('hidden');
         });
 
         function selectName(n) { input.value = n; suggs.classList.add('hidden'); }

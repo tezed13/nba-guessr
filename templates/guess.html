@@ -138,9 +138,10 @@
             background: #18181b;
             border: 1.5px solid #27272a;
             border-radius: 10px;
-            margin-top: 6px;
+            bottom: calc(100% + 6px);
+            top: auto;
             overflow-y: auto;
-            max-height: 180px;
+            max-height: 320px;
         }
         .sug-item {
             padding: 10px 14px;
@@ -497,18 +498,32 @@
             document.getElementById('suggestions').classList.add('hidden');
         }
 
-        // ── Autocomplete ───────────────────────────────────────
+        // ── Autocomplete ───────────────────────────────────────────────
         const input = document.getElementById('guessInput');
         const suggs = document.getElementById('suggestions');
 
+        function matchPlayers(val) {
+            const q = val.toLowerCase().trim();
+            if (q.length < 2) return [];
+            const lastNameMatches  = [];
+            const firstNameMatches = [];
+            allPlayers.forEach(p => {
+                const parts = p.toLowerCase().split(' ');
+                const firstName = parts[0] || '';
+                const lastName  = parts.slice(1).join(' ') || '';
+                if (lastName.startsWith(q))       lastNameMatches.push(p);
+                else if (firstName.startsWith(q)) firstNameMatches.push(p);
+            });
+            return [...lastNameMatches, ...firstNameMatches];
+        }
+
         input.addEventListener('input', () => {
-            const val = input.value.toLowerCase();
-            if (val.length < 2) { suggs.classList.add('hidden'); return; }
-            const matches = allPlayers.filter(p => p.toLowerCase().includes(val)).slice(0, 7);
+            const matches = matchPlayers(input.value);
             if (!matches.length) { suggs.classList.add('hidden'); return; }
-            suggs.innerHTML = matches.map(m =>
-                `<div class="sug-item" onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>`
-            ).join('');
+            suggs.innerHTML = matches.map(m => {
+                const safe = m.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + m + '</div>';
+            }).join('');
             suggs.classList.remove('hidden');
         });
 
