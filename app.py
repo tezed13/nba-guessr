@@ -71,7 +71,7 @@ STAT_MAP = {
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/guess", response_class=HTMLResponse)
@@ -82,9 +82,9 @@ async def guess_page(
     types: str = Query("all"),
 ):
     return templates.TemplateResponse(
+        request,
         "guess.html",
         {
-            "request": request,
             "start_season": start_season,
             "end_season": end_season,
             "types": types.split(",") if types else ["all"],
@@ -94,7 +94,7 @@ async def guess_page(
 
 @app.get("/spin", response_class=HTMLResponse)
 async def spin_page(request: Request):
-    return templates.TemplateResponse("spin.html", {"request": request})
+    return templates.TemplateResponse(request, "spin.html")
 
 # ---------------------------------------------------------------------------
 # API routes
