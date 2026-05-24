@@ -21,17 +21,52 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # Load & normalise CSV once at startup
 # ---------------------------------------------------------------------------
 
-csv_path = BASE_DIR / "Data" / "Player Per Game.csv"
+csv_path   = BASE_DIR / "Data" / "Player Per Game.csv"
+info_path  = BASE_DIR / "Data" / "Player Career Info.csv"
+draft_path = BASE_DIR / "Data" / "Draft Pick History.csv"
 
 try:
     stats_df = pd.read_csv(csv_path)
-    # Normalise all column names to lowercase once — not inside a route
     stats_df.columns = [c.lower() for c in stats_df.columns]
     stats_df["season"] = stats_df["season"].astype(int)
-    print(f"Loaded {len(stats_df)} rows from CSV.")
+    print(f"Loaded {len(stats_df)} stats rows.")
 except Exception as e:
     stats_df = pd.DataFrame()
-    print(f"Error loading CSV: {e}")
+    print(f"Error loading stats CSV: {e}")
+
+# Player info — height, weight, HOF
+try:
+    info_df = pd.read_csv(info_path)
+    info_df.columns = [c.lower() for c in info_df.columns]
+
+    def inches_to_ft(val):
+        try:
+            total = int(val)
+            return f"{total // 12}'{total % 12}""
+        except:
+            return None
+
+    info_df["height"] = info_df["ht_in_in"].apply(inches_to_ft)
+    info_df["hof"]    = info_df["hof"].fillna("").astype(str).str.strip()
+    # Keep only columns we need, keyed by player_id
+    info_lookup = info_df.set_index("player_id")[["height", "hof"]].to_dict("index")
+    print(f"Loaded {len(info_lookup)} player info rows.")
+except Exception as e:
+    info_lookup = {}
+    print(f"Error loading info CSV: {e}")
+
+# Draft picks — overall pick number, keyed by player_id
+try:
+    draft_df = pd.read_csv(draft_path)
+    draft_df.columns = [c.lower() for c in draft_df.columns]
+    # Keep first (earliest) draft entry per player in case of duplicates
+    draft_df = draft_df.dropna(subset=["player_id", "overall_pick"])
+    draft_df["overall_pick"] = draft_df["overall_pick"].astype(int)
+    draft_lookup = draft_df.groupby("player_id")["overall_pick"].first().to_dict()
+    print(f"Loaded {len(draft_lookup)} draft pick rows.")
+except Exception as e:
+    draft_lookup = {}
+    print(f"Error loading draft CSV: {e}")
 
 # ---------------------------------------------------------------------------
 # Conference mapping
@@ -153,10 +188,51 @@ async def random_player(
 
         # Pick a random player and return their full career stats
         random_name = random.choice(filtered["player"].unique())
-        career = (
-            stats_df[stats_df["player"] == random_name]
-            .sort_values("season", ascending=False)
-        )
+        career_raw = stats_df[stats_df["player"] == random_name].copy()
+
+        # ── Normalize traded-player rows ──────────────────────────────────────
+        # Replace XTM rows with the actual individual team rows for that season,
+        # ordered so the team matching the prior or next season appears last (bottom).
+        def normalize_career(df):
+            rows = []
+            seasons = sorted(df["season"].unique())
+            for i, szn in enumerate(seasons):
+                szn_rows = df[df["season"] == szn]
+                multi = szn_rows["team"].str.match(r"\d+TM", na=False)
+                if multi.any():
+                    # Get individual team rows only (not the XTM summary)
+                    real_rows = szn_rows[~multi].copy()
+                    if real_rows.empty:
+                        rows.append(szn_rows.iloc[0])
+                        continue
+                    # Figure out anchor team: team from next season (or prev if last)
+                    anchor = None
+                    if i + 1 < len(seasons):
+                        next_szn = df[df["season"] == seasons[i + 1]]
+                        next_teams = next_szn[~next_szn["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
+                        if next_teams:
+                            anchor = next_teams[0]
+                    if anchor is None and i > 0:
+                        prev_szn = df[df["season"] == seasons[i - 1]]
+                        prev_teams = prev_szn[~prev_szn["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
+                        if prev_teams:
+                            anchor = prev_teams[-1]
+                    # Put anchor team last, others first
+                    if anchor:
+                        anchor_rows = real_rows[real_rows["team"] == anchor]
+                        other_rows  = real_rows[real_rows["team"] != anchor]
+                        ordered = pd.concat([other_rows, anchor_rows])
+                    else:
+                        ordered = real_rows
+                    for _, r in ordered.iterrows():
+                        rows.append(r)
+                else:
+                    for _, r in szn_rows.iterrows():
+                        rows.append(r)
+            result = pd.DataFrame(rows)
+            return result.sort_values("season", ascending=False)
+
+        career = normalize_career(career_raw)
 
         import math
         raw_seasons = career.to_dict(orient="records")
@@ -166,9 +242,17 @@ async def random_player(
              for k, v in row.items()}
             for row in raw_seasons
         ]
+        # Look up height and draft pick via player_id
+        player_id = career_raw["player_id"].iloc[0] if "player_id" in career_raw.columns else None
+        info  = info_lookup.get(player_id, {})
+        pick  = draft_lookup.get(player_id)
+
         return JSONResponse({
             "player_name": random_name,
-            "seasons": clean_seasons,
+            "height":      info.get("height"),
+            "hof":         info.get("hof", ""),
+            "draft_pick":  int(pick) if pick is not None else None,
+            "seasons":     clean_seasons,
         })
 
     except Exception as e:

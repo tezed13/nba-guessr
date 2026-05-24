@@ -260,9 +260,12 @@
 
         <!-- Stats area (scrollable) -->
         <div id="statsArea">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px 6px">
-                <p style="font-size:10px;font-weight:700;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Career Stats</p>
-                <p id="playerNameDisplay">— — —</p>
+            <div style="padding:8px 4px 6px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <p style="font-size:10px;font-weight:700;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Career Stats</p>
+                    <p id="playerNameDisplay">— — —</p>
+                </div>
+                <div id="hintBadges" style="display:flex;gap:6px;flex-wrap:wrap"></div>
             </div>
             <div style="border-radius:14px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
                 <div style="overflow-x:auto">
@@ -271,6 +274,7 @@
                             <tr>
                                 <th>Year</th><th>Team</th><th>G</th><th>GS</th>
                                 <th>MP</th><th>PTS</th><th>REB</th><th>AST</th>
+                                <th>BLK</th><th>STL</th><th>TOV</th><th>3PA</th><th>3P%</th>
                             </tr>
                         </thead>
                         <tbody id="seasonsBody"></tbody>
@@ -328,6 +332,10 @@
 
         // ── Helpers ────────────────────────────────────────────
         function fmt(v) { return (v !== null && v !== undefined) ? v : '—'; }
+        function fmtPct(v) {
+            if (v === null || v === undefined) return '—';
+            return (parseFloat(v) * 100).toFixed(1) + '%';
+        }
 
         function buildDots() {
             const el = document.getElementById('attemptDots');
@@ -405,6 +413,7 @@
 
             document.getElementById('playerNameDisplay').textContent = '— — —';
             document.getElementById('playerNameDisplay').style.color = '#3f3f46';
+            document.getElementById('hintBadges').innerHTML = '';
             document.getElementById('guessInput').value = '';
             document.getElementById('suggestions').classList.add('hidden');
             hideBanner();
@@ -430,6 +439,17 @@
                 if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
                 const data = await res.json();
                 currentPlayerName = data.player_name;
+
+                // Populate hint badges
+                const badges = document.getElementById('hintBadges');
+                badges.innerHTML = '';
+                const badgeStyle = 'display:inline-flex;align-items:center;gap:4px;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;color:#71717a';
+                if (data.height)     badges.innerHTML += `<span style="${badgeStyle}">📏 ${data.height}</span>`;
+                if (data.draft_pick) badges.innerHTML += `<span style="${badgeStyle}">🏀 Pick #${data.draft_pick}</span>`;
+                if (data.hof === '1' || data.hof?.toLowerCase() === 'hof')
+                    badges.innerHTML += `<span style="${badgeStyle};border-color:#854d0e;color:#fbbf24">🏆 HOF</span>`;
+                if (!data.draft_pick && data.draft_pick !== 0)
+                    badges.innerHTML += `<span style="${badgeStyle}">🏀 Undrafted</span>`;
 
                 tbody.innerHTML = '';
                 data.seasons.forEach(s => {
