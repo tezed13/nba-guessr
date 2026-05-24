@@ -1,4 +1,5 @@
 import random
+import re
 import pandas as pd
 from pathlib import Path
 from fastapi import FastAPI, Request, Query
@@ -119,7 +120,7 @@ async def all_players():
 @app.get("/random_player")
 async def random_player(
     start_season: int = Query(2000),
-    end_season: int = Query(2025),
+    end_season: int = Query(2026),
     types: str = Query("starters"),
 ):
     try:
@@ -194,7 +195,7 @@ async def spin_data():
         def dedup_season(df):
             counts = df.groupby("player")["player"].transform("count")
             # Keep TOT rows for multi-team players, keep all rows for single-team players
-            return df[(counts == 1) | (df["tm"] == "TOT")]
+            return df[(counts == 1) | (df["team"].str.match(r"\d+TM"))]
 
         for _ in range(10):
             chosen_season = random.choice(stats_df["season"].unique().tolist())
@@ -217,17 +218,17 @@ async def spin_data():
         leader_row = season_df.iloc[0]
 
         stat_val = float(leader_row[chosen_stat_key])
-        team_abbrev = str(leader_row.get("tm", "TOT")).upper()
+        team_abbrev = str(leader_row.get("team", "")).upper()
 
         # For traded players TOT has no conference — use their last real team
-        if team_abbrev == "TOT":
+        if re.match(r"\d+TM", team_abbrev):  # traded player — find real last team
             player_rows = stats_df[
                 (stats_df["player"] == leader_row["player"]) &
                 (stats_df["season"] == chosen_season) &
-                (stats_df["tm"] != "TOT")
+                (~stats_df["team"].str.match(r"\d+TM", na=False))
             ]
             if not player_rows.empty:
-                team_abbrev = player_rows.iloc[-1]["tm"].upper()
+                team_abbrev = player_rows.iloc[-1]["team"].upper()
 
         print(f"SPIN: {leader_row['player']} | {STAT_MAP[chosen_stat_key]}: {stat_val} | {chosen_season}")
 
