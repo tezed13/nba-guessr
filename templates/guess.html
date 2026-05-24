@@ -8,149 +8,189 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        * { box-sizing: border-box; }
-        body {
+        html, body {
+            height: 100%;
             font-family: 'Inter', sans-serif;
             background: #0d0d0f;
             color: #fff;
-            min-height: 100vh;
+            overflow: hidden; /* prevent outer scroll */
         }
 
+        /* Full-height flex layout */
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100dvh;
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* Top bar — fixed height */
+        #topbar {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0 10px;
+            border-bottom: 1px solid #1c1c1f;
+        }
+
+        /* Stats area — scrollable, fills remaining space */
+        #statsArea {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 0 8px;
+            /* Hide scrollbar but keep functional */
+            scrollbar-width: thin;
+            scrollbar-color: #27272a transparent;
+        }
+        #statsArea::-webkit-scrollbar { width: 4px; }
+        #statsArea::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+
+        /* Guess panel — fixed at bottom */
+        #guessPanel {
+            flex-shrink: 0;
+            border-top: 1px solid #1c1c1f;
+            padding: 12px 0 16px;
+            background: #0d0d0f;
+        }
+
+        /* Settings drawer */
+        #settingsDrawer {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: flex-end;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+        #settingsDrawer.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        #drawerContent {
+            width: 100%;
+            max-width: 680px;
+            margin: 0 auto;
+            background: #111113;
+            border: 1px solid #27272a;
+            border-radius: 20px 20px 0 0;
+            padding: 24px 20px 36px;
+            transform: translateY(100%);
+            transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+        }
+        #settingsDrawer.open #drawerContent { transform: translateY(0); }
+
         /* Stat table */
+        .stat-table { width: 100%; border-collapse: collapse; }
         .stat-table thead th {
             background: #18181b;
             color: #52525b;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            padding: 10px 14px;
+            padding: 9px 12px;
             border-bottom: 1px solid #27272a;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
-        .stat-table tbody tr {
-            border-bottom: 1px solid #1c1c1f;
-            transition: background 0.15s;
-        }
+        .stat-table tbody tr { border-bottom: 1px solid #1c1c1f; }
         .stat-table tbody tr:last-child { border-bottom: none; }
         .stat-table tbody tr:hover { background: #18181b; }
-        .stat-table tbody td {
-            padding: 11px 14px;
-            font-size: 13px;
-            color: #a1a1aa;
-        }
-        .stat-table tbody td.pts { color: #60a5fa; font-weight: 700; }
-        .stat-table tbody td.season-col { color: #52525b; font-weight: 600; }
-        .stat-table tbody td.team-col { color: #e4e4e7; font-weight: 600; }
+        .stat-table tbody td { padding: 9px 12px; font-size: 13px; color: #a1a1aa; }
+        .stat-table tbody td.pts  { color: #60a5fa; font-weight: 700; }
+        .stat-table tbody td.yr   { color: #52525b; font-weight: 600; }
+        .stat-table tbody td.tm   { color: #e4e4e7; font-weight: 600; }
 
         /* Input */
-        #guessInput {
+        .dark-input {
             background: #18181b;
             border: 1.5px solid #27272a;
             border-radius: 10px;
             color: #fff;
             font-size: 15px;
             font-weight: 600;
-            padding: 13px 16px;
+            padding: 12px 14px;
             width: 100%;
             outline: none;
             transition: border-color 0.2s;
+            font-family: inherit;
         }
-        #guessInput:focus { border-color: #3b82f6; }
-        #guessInput::placeholder { color: #3f3f46; }
+        .dark-input:focus { border-color: #3b82f6; }
+        .dark-input::placeholder { color: #3f3f46; }
+
+        select.dark-input { cursor: pointer; }
 
         /* Suggestions */
         #suggestions {
+            position: absolute;
+            z-index: 30;
+            width: 100%;
             background: #18181b;
             border: 1.5px solid #27272a;
             border-radius: 10px;
             margin-top: 6px;
             overflow-y: auto;
-            max-height: 200px;
+            max-height: 180px;
         }
-        .suggestion-item {
-            padding: 11px 16px;
+        .sug-item {
+            padding: 10px 14px;
             font-size: 14px;
             font-weight: 600;
             color: #d4d4d8;
             cursor: pointer;
             border-bottom: 1px solid #27272a;
-            transition: background 0.1s, color 0.1s;
         }
-        .suggestion-item:last-child { border-bottom: none; }
-        .suggestion-item:hover { background: #3b82f6; color: #fff; }
+        .sug-item:last-child { border-bottom: none; }
+        .sug-item:hover { background: #3b82f6; color: #fff; }
 
         /* Buttons */
-        .btn-primary {
-            background: #3b82f6;
-            color: #fff;
-            font-weight: 800;
-            font-size: 14px;
-            letter-spacing: 0.05em;
-            padding: 13px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
-            text-transform: uppercase;
-        }
-        .btn-primary:hover { background: #2563eb; }
-        .btn-primary:active { transform: scale(0.98); }
+        .btn { border: none; border-radius: 10px; font-family: inherit; font-weight: 800; font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; padding: 12px 16px; transition: background 0.15s, transform 0.1s; }
+        .btn:active { transform: scale(0.97); }
+        .btn-blue   { background: #3b82f6; color: #fff; }
+        .btn-blue:hover { background: #2563eb; }
+        .btn-dim    { background: #27272a; color: #a1a1aa; }
+        .btn-dim:hover { background: #3f3f46; color: #fff; }
+        .btn-icon   { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 16px; line-height: 1; }
+        .btn-icon:hover { background: #27272a; }
 
-        .btn-secondary {
-            background: #27272a;
-            color: #a1a1aa;
-            font-weight: 800;
-            font-size: 14px;
-            letter-spacing: 0.05em;
-            padding: 13px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: pointer;
-            transition: background 0.2s, color 0.2s;
-            text-transform: uppercase;
+        /* Guess attempt dots */
+        .attempt-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            border: 1.5px solid #3f3f46;
+            display: inline-block;
+            transition: background 0.2s, border-color 0.2s;
         }
-        .btn-secondary:hover { background: #3f3f46; color: #fff; }
+        .attempt-dot.used-wrong { background: #f87171; border-color: #f87171; }
+        .attempt-dot.used-right { background: #4ade80; border-color: #4ade80; }
 
         /* Result banner */
-        .result-banner {
-            border-radius: 10px;
-            padding: 14px 20px;
-            font-weight: 800;
-            font-size: 15px;
-            letter-spacing: 0.03em;
-            text-align: center;
-        }
-        .result-correct { background: #052e16; border: 1px solid #166534; color: #4ade80; }
-        .result-wrong   { background: #450a0a; border: 1px solid #991b1b; color: #f87171; }
+        .banner { border-radius: 10px; padding: 12px 16px; font-weight: 800; font-size: 14px; text-align: center; }
+        .banner-ok  { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+        .banner-err { background: #450a0a; border: 1px solid #991b1b; color: #f87171; }
+        .banner-hint { background: #1c1917; border: 1px solid #44403c; color: #d6d3d1; }
 
-        /* Streak pill */
-        .streak-pill {
-            background: #18181b;
-            border: 1px solid #27272a;
-            border-radius: 999px;
-            padding: 6px 18px;
-            font-size: 13px;
-            font-weight: 700;
-            color: #52525b;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .streak-pill span { color: #3b82f6; font-size: 18px; font-weight: 900; }
+        /* Streak */
+        .streak-pill { background: #18181b; border: 1px solid #27272a; border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 700; color: #52525b; display: flex; align-items: center; gap: 6px; }
+        .streak-pill span { color: #3b82f6; font-size: 16px; font-weight: 900; }
 
-        /* Player name reveal */
-        #playerNameDisplay {
-            font-size: 22px;
-            font-weight: 900;
-            letter-spacing: 0.04em;
-            text-align: center;
-            min-height: 32px;
-        }
+        /* Settings label */
+        .setting-label { font-size: 11px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
 
-        /* Loading skeleton pulse */
-        @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.9} }
-        .skeleton { animation: pulse 1.2s ease-in-out infinite; background: #18181b; border-radius: 4px; }
+        /* Player name in card header */
+        #playerNameDisplay { font-size: 13px; font-weight: 800; letter-spacing: 0.05em; color: #3f3f46; }
+
+        @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.8} }
+        .skeleton { animation: pulse 1.2s ease-in-out infinite; background: #18181b; border-radius: 4px; display: inline-block; width: 100%; height: 14px; }
     </style>
 </head>
 <body>
@@ -158,102 +198,225 @@
     <input type="hidden" id="endSeason" value="{{ end_season }}">
     <input type="hidden" id="types" value="{{ types }}">
 
-    <div class="max-w-2xl mx-auto px-4 py-6">
+    <!-- Settings Drawer -->
+    <div id="settingsDrawer">
+        <div id="drawerContent">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+                <p style="font-size:16px;font-weight:800;letter-spacing:0.03em">Game Settings</p>
+                <button class="btn-icon" onclick="closeSettings()">✕</button>
+            </div>
 
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+                <div>
+                    <p class="setting-label">Start Year</p>
+                    <input type="number" id="setStart" class="dark-input" min="1947" max="2025" placeholder="e.g. 2000">
+                </div>
+                <div>
+                    <p class="setting-label">End Year</p>
+                    <input type="number" id="setEnd" class="dark-input" min="1947" max="2025" placeholder="e.g. 2025">
+                </div>
+            </div>
+
+            <div style="margin-bottom:14px">
+                <p class="setting-label">Player Pool</p>
+                <select id="setTypes" class="dark-input">
+                    <option value="starters">Starters (40+ GS)</option>
+                    <option value="bench">Bench (5–39 GS)</option>
+                    <option value="endbench">End of Bench (&lt;5 GS)</option>
+                    <option value="starters,bench">Starters + Bench</option>
+                    <option value="starters,bench,endbench">All Players</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom:20px">
+                <p class="setting-label">Max Guesses</p>
+                <div style="display:flex;gap:8px">
+                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="1" onclick="selectGuessLimit(1)">1</button>
+                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="2" onclick="selectGuessLimit(2)">2</button>
+                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="3" onclick="selectGuessLimit(3)">3</button>
+                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="4" onclick="selectGuessLimit(4)">4</button>
+                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="5" onclick="selectGuessLimit(5)">5</button>
+                </div>
+            </div>
+
+            <button class="btn btn-blue" style="width:100%" onclick="applySettings()">Apply & New Player</button>
+        </div>
+    </div>
+
+    <div id="app">
         <!-- Top bar -->
-        <div class="flex items-center justify-between mb-8">
-            <a href="/" class="text-zinc-600 hover:text-zinc-300 text-sm font-semibold transition">← Menu</a>
-            <div class="text-center">
-                <h1 class="text-xl font-black tracking-tight text-white">NBA GUESSR</h1>
-                <p class="text-zinc-600 text-xs font-semibold mt-0.5">{{ start_season }} – {{ end_season }}</p>
+        <div id="topbar">
+            <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Menu</a>
+            <div style="text-align:center">
+                <div style="font-size:16px;font-weight:900;letter-spacing:0.03em">NBA GUESSR</div>
+                <div id="rangeLabel" style="font-size:11px;color:#52525b;font-weight:600;margin-top:2px">{{ start_season }} – {{ end_season }}</div>
             </div>
-            <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
-        </div>
-
-        <!-- Stats card -->
-        <div class="rounded-2xl border border-zinc-800 overflow-hidden mb-5" style="background:#111113">
-            <div class="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
-                <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">Career Stats</p>
-                <p id="playerNameDisplay" class="text-zinc-700 tracking-widest">— — —</p>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full stat-table">
-                    <thead>
-                        <tr>
-                            <th>Year</th>
-                            <th>Team</th>
-                            <th>G</th>
-                            <th>GS</th>
-                            <th>MP</th>
-                            <th>PTS</th>
-                            <th>REB</th>
-                            <th>AST</th>
-                        </tr>
-                    </thead>
-                    <tbody id="seasonsBody"></tbody>
-                </table>
+            <div style="display:flex;align-items:center;gap:8px">
+                <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
+                <button class="btn-icon" onclick="openSettings()" title="Settings">⚙️</button>
             </div>
         </div>
 
-        <!-- Guess card -->
-        <div class="rounded-2xl border border-zinc-800 p-5" style="background:#111113">
-
-            <!-- Input + suggestions -->
-            <div class="relative mb-4">
-                <input type="text" id="guessInput" placeholder="Search player name...">
-                <div id="suggestions" class="absolute z-20 w-full hidden"></div>
+        <!-- Stats area (scrollable) -->
+        <div id="statsArea">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px 6px">
+                <p style="font-size:10px;font-weight:700;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Career Stats</p>
+                <p id="playerNameDisplay">— — —</p>
             </div>
+            <div style="border-radius:14px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
+                <div style="overflow-x:auto">
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th>Year</th><th>Team</th><th>G</th><th>GS</th>
+                                <th>MP</th><th>PTS</th><th>REB</th><th>AST</th>
+                            </tr>
+                        </thead>
+                        <tbody id="seasonsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
-            <!-- Result banner (hidden until guess) -->
-            <div id="resultBanner" class="result-banner hidden mb-4"></div>
+        <!-- Guess panel (sticky bottom) -->
+        <div id="guessPanel">
+            <!-- Attempt dots -->
+            <div id="attemptDots" style="display:flex;gap:6px;justify-content:center;margin-bottom:10px"></div>
+
+            <!-- Banner -->
+            <div id="resultBanner" class="banner" style="display:none;margin-bottom:10px"></div>
+
+            <!-- Input -->
+            <div style="position:relative;margin-bottom:10px">
+                <input type="text" id="guessInput" class="dark-input" placeholder="Search player name...">
+                <div id="suggestions" class="hidden"></div>
+            </div>
 
             <!-- Buttons -->
-            <div class="flex gap-3">
-                <button id="submitBtn" class="btn-primary flex-1">Submit Guess</button>
-                <button id="nextBtn" class="btn-secondary flex-1 hidden">Next Player →</button>
+            <div style="display:flex;gap:10px">
+                <button id="submitBtn" class="btn btn-blue" style="flex:1">Submit Guess</button>
+                <button id="nextBtn" class="btn btn-dim" style="flex:1;display:none">Next Player →</button>
             </div>
         </div>
-
     </div>
 
     <script>
+        // ── State ──────────────────────────────────────────────
         let currentPlayerName = "";
         let streak = 0;
         let allPlayers = [];
+        let maxGuesses = 1;
+        let guessesUsed = 0;
+        let roundOver = false;
+
+        // Read initial values from hidden inputs
+        let activeSeason  = { start: parseInt(document.getElementById('startSeason').value),
+                               end:   parseInt(document.getElementById('endSeason').value) };
+        let activeTypes   = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
 
         fetch('/all_players').then(r => r.json()).then(d => allPlayers = d);
 
-        function fmt(val) {
-            return (val !== null && val !== undefined) ? val : '—';
+        // ── Helpers ────────────────────────────────────────────
+        function fmt(v) { return (v !== null && v !== undefined) ? v : '—'; }
+
+        function buildDots() {
+            const el = document.getElementById('attemptDots');
+            el.innerHTML = Array.from({length: maxGuesses}, (_, i) =>
+                `<span class="attempt-dot" id="dot-${i}"></span>`).join('');
         }
 
+        function markDot(index, correct) {
+            const d = document.getElementById(`dot-${index}`);
+            if (d) d.classList.add(correct ? 'used-right' : 'used-wrong');
+        }
+
+        function showBanner(text, type) {
+            const b = document.getElementById('resultBanner');
+            b.textContent = text;
+            b.className = `banner banner-${type}`;
+            b.style.display = 'block';
+        }
+
+        function hideBanner() {
+            document.getElementById('resultBanner').style.display = 'none';
+        }
+
+        // ── Settings drawer ────────────────────────────────────
+        let pendingGuessLimit = maxGuesses;
+
+        function openSettings() {
+            document.getElementById('setStart').value  = activeSeason.start;
+            document.getElementById('setEnd').value    = activeSeason.end;
+            document.getElementById('setTypes').value  = activeTypes;
+            pendingGuessLimit = maxGuesses;
+            updateGuessLimitBtns();
+            document.getElementById('settingsDrawer').classList.add('open');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsDrawer').classList.remove('open');
+        }
+
+        function selectGuessLimit(n) {
+            pendingGuessLimit = n;
+            updateGuessLimitBtns();
+        }
+
+        function updateGuessLimitBtns() {
+            document.querySelectorAll('.guess-limit-btn').forEach(btn => {
+                const active = parseInt(btn.dataset.val) === pendingGuessLimit;
+                btn.className = `guess-limit-btn btn ${active ? 'btn-blue' : 'btn-dim'}`;
+                btn.style.flex = '1';
+            });
+        }
+
+        function applySettings() {
+            const s = parseInt(document.getElementById('setStart').value) || activeSeason.start;
+            const e = parseInt(document.getElementById('setEnd').value)   || activeSeason.end;
+            if (s > e) { alert('Start year must be before end year.'); return; }
+            activeSeason = { start: s, end: e };
+            activeTypes  = document.getElementById('setTypes').value;
+            maxGuesses   = pendingGuessLimit;
+            document.getElementById('rangeLabel').textContent = `${s} – ${e}`;
+            closeSettings();
+            loadPlayer();
+        }
+
+        // Close drawer on backdrop click
+        document.getElementById('settingsDrawer').addEventListener('click', e => {
+            if (e.target === document.getElementById('settingsDrawer')) closeSettings();
+        });
+
+        // ── Reset UI ───────────────────────────────────────────
         function resetUI() {
+            guessesUsed = 0;
+            roundOver   = false;
+            currentPlayerName = "";
+
             document.getElementById('playerNameDisplay').textContent = '— — —';
             document.getElementById('playerNameDisplay').style.color = '#3f3f46';
             document.getElementById('guessInput').value = '';
             document.getElementById('suggestions').classList.add('hidden');
-            document.getElementById('resultBanner').classList.add('hidden');
-            document.getElementById('resultBanner').textContent = '';
-            document.getElementById('submitBtn').classList.remove('hidden');
-            document.getElementById('nextBtn').classList.add('hidden');
+            hideBanner();
+
+            document.getElementById('submitBtn').style.display = 'block';
+            document.getElementById('nextBtn').style.display   = 'none';
+
+            buildDots();
         }
 
+        // ── Load player ────────────────────────────────────────
         async function loadPlayer() {
             resetUI();
-
-            const start = document.getElementById('startSeason').value;
-            const end   = document.getElementById('endSeason').value;
-            const types = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
             const tbody = document.getElementById('seasonsBody');
-
-            // Skeleton rows while loading
-            tbody.innerHTML = Array(4).fill(`
-                <tr>
-                    ${Array(8).fill('<td><div class="skeleton h-4 w-full" style="min-width:32px">&nbsp;</div></td>').join('')}
-                </tr>`).join('');
+            tbody.innerHTML = Array(4).fill(
+                `<tr>${Array(8).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
+            ).join('');
 
             try {
-                const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+                const res = await fetch(
+                    `/random_player?start_season=${activeSeason.start}&end_season=${activeSeason.end}&types=${activeTypes}`
+                );
                 if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
                 const data = await res.json();
                 currentPlayerName = data.player_name;
@@ -262,8 +425,8 @@
                 data.seasons.forEach(s => {
                     tbody.insertAdjacentHTML('beforeend', `
                         <tr>
-                            <td class="season-col">${fmt(s.season)}</td>
-                            <td class="team-col">${fmt(s.tm)}</td>
+                            <td class="yr">${fmt(s.season)}</td>
+                            <td class="tm">${fmt(s.tm)}</td>
                             <td>${fmt(s.g)}</td>
                             <td>${fmt(s.gs)}</td>
                             <td>${fmt(s.mp_per_game ?? s.mp)}</td>
@@ -273,36 +436,53 @@
                         </tr>`);
                 });
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
             }
         }
 
-        document.getElementById('submitBtn').onclick = () => {
-            const guess = document.getElementById('guessInput').value.trim().toLowerCase();
-            const banner = document.getElementById('resultBanner');
-            const nameEl = document.getElementById('playerNameDisplay');
-            const correct = guess === currentPlayerName.toLowerCase();
+        // ── Submit guess ───────────────────────────────────────
+        document.getElementById('submitBtn').addEventListener('click', () => {
+            if (roundOver || !currentPlayerName) return;
+            const guess   = document.getElementById('guessInput').value.trim();
+            const correct = guess.toLowerCase() === currentPlayerName.toLowerCase();
+
+            markDot(guessesUsed, correct);
+            guessesUsed++;
 
             if (correct) {
                 streak++;
-                banner.textContent = `✓ Correct! ${currentPlayerName}`;
-                banner.className = 'result-banner result-correct mb-4';
-                nameEl.style.color = '#4ade80';
+                document.getElementById('streakVal').textContent = streak;
+                document.getElementById('playerNameDisplay').textContent = currentPlayerName;
+                document.getElementById('playerNameDisplay').style.color = '#4ade80';
+                showBanner(`✓ ${currentPlayerName}`, 'ok');
+                endRound();
             } else {
-                streak = 0;
-                banner.textContent = `✗ Airball! It was ${currentPlayerName}`;
-                banner.className = 'result-banner result-wrong mb-4';
-                nameEl.style.color = '#f87171';
+                const guessesLeft = maxGuesses - guessesUsed;
+                if (guessesLeft > 0) {
+                    // More guesses remaining
+                    showBanner(`✗ Not ${guess || '?'} — ${guessesLeft} guess${guessesLeft > 1 ? 'es' : ''} left`, 'hint');
+                    document.getElementById('guessInput').value = '';
+                } else {
+                    // Out of guesses
+                    streak = 0;
+                    document.getElementById('streakVal').textContent = streak;
+                    document.getElementById('playerNameDisplay').textContent = currentPlayerName;
+                    document.getElementById('playerNameDisplay').style.color = '#f87171';
+                    showBanner(`✗ It was ${currentPlayerName}`, 'err');
+                    endRound();
+                }
             }
+        });
 
-            nameEl.textContent = currentPlayerName;
-            banner.classList.remove('hidden');
-            document.getElementById('streakVal').textContent = streak;
-            document.getElementById('submitBtn').classList.add('hidden');
-            document.getElementById('nextBtn').classList.remove('hidden');
-        };
+        function endRound() {
+            roundOver = true;
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('nextBtn').style.display   = 'block';
+            document.getElementById('guessInput').value = '';
+            document.getElementById('suggestions').classList.add('hidden');
+        }
 
-        // Autocomplete
+        // ── Autocomplete ───────────────────────────────────────
         const input = document.getElementById('guessInput');
         const suggs = document.getElementById('suggestions');
 
@@ -312,7 +492,7 @@
             const matches = allPlayers.filter(p => p.toLowerCase().includes(val)).slice(0, 7);
             if (!matches.length) { suggs.classList.add('hidden'); return; }
             suggs.innerHTML = matches.map(m =>
-                `<div class="suggestion-item" onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>`
+                `<div class="sug-item" onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>`
             ).join('');
             suggs.classList.remove('hidden');
         });
@@ -322,14 +502,16 @@
             suggs.classList.add('hidden');
         }
 
-        // Close suggestions on outside click
         document.addEventListener('click', e => {
-            if (!e.target.closest('#guessInput') && !e.target.closest('#suggestions')) {
+            if (!e.target.closest('#guessInput') && !e.target.closest('#suggestions'))
                 suggs.classList.add('hidden');
-            }
         });
 
-        document.getElementById('nextBtn').onclick = loadPlayer;
+        // ── Init ───────────────────────────────────────────────
+        document.getElementById('nextBtn').addEventListener('click', loadPlayer);
+
+        // Set initial guess limit button highlight
+        updateGuessLimitBtns();
         window.onload = loadPlayer;
     </script>
 </body>
