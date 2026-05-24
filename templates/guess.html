@@ -47,8 +47,7 @@
                         <th class="p-4">TRB</th>
                     </tr>
                 </thead>
-                <tbody id="seasonsBody" class="font-medium text-gray-300">
-                    </tbody>
+                <tbody id="seasonsBody" class="font-medium text-gray-300"></tbody>
             </table>
         </div>
 
@@ -75,55 +74,71 @@
         let streak = 0;
         let allPlayers = [];
 
-        // Fetch autocomplete list
         fetch('/all_players').then(r => r.json()).then(data => allPlayers = data);
 
-        async function loadPlayer() {
-    // Get values and strip out any weird characters
-    const start = document.getElementById('startSeason').value;
-    const end = document.getElementById('endSeason').value;
-    let types = document.getElementById('types').value;
-    
-    // Clean types string to ensure it's just "starters,bench"
-    types = types.replace(/[\[\]'"]/g, "");
+        function resetUI() {
+            // Reset player display
+            const display = document.getElementById('playerNameDisplay');
+            display.textContent = "??????";
+            display.className = "text-3xl font-black mb-6 text-gray-700 tracking-widest uppercase";
 
-    const tbody = document.getElementById('seasonsBody');
-    tbody.innerHTML = "<tr><td colspan='8' class='p-10 text-center text-gray-500 animate-pulse'>LOADING...</td></tr>";
+            // Clear guess input
+            document.getElementById('guessInput').value = "";
+            document.getElementById('suggestions').classList.add('hidden');
 
-    try {
-        const response = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
-        
-        // If the server sends a 500, this catch will trigger
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Server Error");
+            // Clear result message
+            const msg = document.getElementById('resultMsg');
+            msg.textContent = "";
+            msg.className = "mt-4 h-8 font-black uppercase italic";
+
+            // Show submit, hide next
+            document.getElementById('submitBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
         }
 
-        const data = await response.json();
-        currentPlayerName = data.player_name;
-        
-        tbody.innerHTML = ""; // Clear loader
-        data.seasons.forEach(s => {
-            const row = `
-                <tr class="border-b border-gray-900">
-                    <td class="p-4 text-gray-500">${s.season}</td>
-                    <td class="p-4">${s.tm}</td>
-                    <td class="p-4">${s.g}</td>
-                    <td class="p-4">${s.gs}</td>
-                    <td class="p-4">${s.mp_per_game || s.mp}</td>
-                    <td class="p-4 text-blue-400 font-bold">${s.pts_per_game || s.pts}</td>
-                    <td class="p-4">${s.ast_per_game || s.ast}</td>
-                    <td class="p-4">${s.trb_per_game || s.trb}</td>
-                </tr>
-            `;
-            tbody.insertAdjacentHTML('beforeend', row);
-        });
-    } catch (err) {
-        console.error("Fetch Error:", err);
-        tbody.innerHTML = `<tr><td colspan='8' class='p-10 text-center text-red-500'>Error: ${err.message}</td></tr>`;
-    }
-}
-        // Guess Logic
+        async function loadPlayer() {
+            resetUI();
+
+            const start = document.getElementById('startSeason').value;
+            const end = document.getElementById('endSeason').value;
+            // Strip any Python list artifacts like ['starters'] → starters
+            const types = document.getElementById('types').value.replace(/[\[\]'"]/g, "").trim();
+
+            const tbody = document.getElementById('seasonsBody');
+            tbody.innerHTML = "<tr><td colspan='8' class='p-10 text-center text-gray-500 animate-pulse'>LOADING...</td></tr>";
+
+            try {
+                const response = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Server Error");
+                }
+
+                const data = await response.json();
+                currentPlayerName = data.player_name;  // Set the new player
+
+                tbody.innerHTML = "";
+                data.seasons.forEach(s => {
+                    const row = `
+                        <tr class="border-b border-gray-900">
+                            <td class="p-4 text-gray-500">${s.season ?? '-'}</td>
+                            <td class="p-4">${s.tm ?? '-'}</td>
+                            <td class="p-4">${s.g ?? '-'}</td>
+                            <td class="p-4">${s.gs ?? '-'}</td>
+                            <td class="p-4">${s.mp_per_game ?? s.mp ?? '-'}</td>
+                            <td class="p-4 text-blue-400 font-bold">${s.pts_per_game ?? s.pts ?? '-'}</td>
+                            <td class="p-4">${s.ast_per_game ?? s.ast ?? '-'}</td>
+                            <td class="p-4">${s.trb_per_game ?? s.trb ?? '-'}</td>
+                        </tr>
+                    `;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+            } catch (err) {
+                console.error("Fetch Error:", err);
+                tbody.innerHTML = `<tr><td colspan='8' class='p-10 text-center text-red-500'>Error: ${err.message}</td></tr>`;
+            }
+        }
+
         document.getElementById('submitBtn').onclick = () => {
             const guess = document.getElementById('guessInput').value.trim().toLowerCase();
             const display = document.getElementById('playerNameDisplay');
@@ -156,7 +171,6 @@
             if (val.length < 2) { suggs.classList.add('hidden'); return; }
             const matches = allPlayers.filter(p => p.toLowerCase().includes(val)).slice(0, 6);
             if (matches.length === 0) { suggs.classList.add('hidden'); return; }
-            
             suggs.innerHTML = matches.map(m => `
                 <div class="p-3 hover:bg-blue-600 cursor-pointer font-bold border-b border-gray-800" 
                      onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>
