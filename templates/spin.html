@@ -3,71 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>NBA Spin - Night Mode</title>
+    <title>NBA Spin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #000000; color: #ffffff; }
-        .slot-container { height: 100px; overflow: hidden; border: 2px solid #333; border-radius: 12px; background: #111; }
-        .slot-reel { transition: none; }
-        .landed { animation: land-pop 0.2s ease-out; }
-        @keyframes land-pop {
-            0% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
+        body { background-color: #000; color: #fff; }
+        .clue-card { transition: all 0.4s ease; }
+        .clue-hidden { filter: blur(8px); opacity: 0.2; user-select: none; }
+        .clue-revealed { filter: none; opacity: 1; }
     </style>
 </head>
 <body class="min-h-screen p-6 flex flex-col items-center">
-    <nav class="w-full max-w-4xl mb-4 text-left">
+    <nav class="w-full max-w-2xl mb-6 text-left">
         <a href="/" class="text-gray-400 hover:text-white font-bold transition">← Back to Menu</a>
     </nav>
 
-    <h1 class="text-5xl font-black mb-10 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 italic uppercase">NBA SPIN</h1>
+    <h1 class="text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 italic uppercase">NBA SPIN</h1>
+    <p class="text-gray-500 text-xs tracking-widest mb-8 uppercase">Guess the season stat leader</p>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl mb-12">
-        <div class="slot-container flex flex-col items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.1)]">
-            <div id="reel-stat" class="slot-reel text-center">
-                <span class="text-[10px] text-gray-500 block uppercase font-bold" id="stat-label">CATEGORY</span>
-                <span class="text-xl font-black text-yellow-500" id="stat-val">?</span>
-            </div>
+    <!-- Clue Cards -->
+    <div class="grid grid-cols-2 gap-4 w-full max-w-2xl mb-8">
+
+        <!-- Always visible -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center col-span-2">
+            <p class="text-gray-500 text-xs uppercase font-bold tracking-widest mb-1">Category & Value</p>
+            <p id="clue-stat" class="text-2xl font-black text-yellow-400 clue-card clue-hidden">—</p>
         </div>
-        <div class="slot-container flex flex-col items-center justify-center border-gray-800">
-            <div id="reel-year" class="slot-reel text-center">
-                <span class="text-[10px] text-gray-500 block uppercase font-bold">SEASON</span>
-                <span class="text-xl font-black text-white" id="year-val">?</span>
-            </div>
+
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
+            <p class="text-gray-500 text-xs uppercase font-bold tracking-widest mb-1">Season</p>
+            <p id="clue-season" class="text-2xl font-black text-white clue-card clue-hidden">—</p>
         </div>
-        <div class="slot-container flex flex-col items-center justify-center border-gray-800">
-            <div id="reel-pos" class="slot-reel text-center">
-                <span class="text-[10px] text-gray-500 block uppercase font-bold">POSITION</span>
-                <span class="text-xl font-black text-white" id="pos-val">?</span>
-            </div>
+
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
+            <p class="text-gray-500 text-xs uppercase font-bold tracking-widest mb-1">Position</p>
+            <p id="clue-pos" class="text-2xl font-black text-white clue-card clue-hidden">—</p>
         </div>
-        <div class="slot-container flex flex-col items-center justify-center border-gray-800">
-            <div id="reel-conf" class="slot-reel text-center">
-                <span class="text-[10px] text-gray-500 block uppercase font-bold">CONFERENCE</span>
-                <span class="text-xl font-black text-white" id="conf-val">?</span>
-            </div>
+
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center col-span-2">
+            <p class="text-gray-500 text-xs uppercase font-bold tracking-widest mb-1">Conference</p>
+            <p id="clue-conf" class="text-2xl font-black text-white clue-card clue-hidden">—</p>
         </div>
     </div>
 
-    <div class="w-full max-w-lg bg-gray-900 p-8 rounded-3xl border border-gray-800 shadow-2xl">
-        <div class="relative">
-            <input type="text" id="guessInput" placeholder="Name the player..." 
-                   class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-yellow-500 outline-none transition-all text-lg font-bold text-white"
+    <!-- Reveal buttons -->
+    <div id="revealBtns" class="flex gap-3 flex-wrap justify-center mb-6 hidden">
+        <button onclick="revealClue('clue-season')" class="bg-gray-800 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition">Reveal Season</button>
+        <button onclick="revealClue('clue-pos')" class="bg-gray-800 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition">Reveal Position</button>
+        <button onclick="revealClue('clue-conf')" class="bg-gray-800 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition">Reveal Conference</button>
+    </div>
+
+    <!-- Guess area -->
+    <div class="w-full max-w-2xl bg-gray-900 p-6 rounded-3xl border border-gray-800">
+        <div class="relative mb-4">
+            <input type="text" id="guessInput" placeholder="Name the player..."
+                   class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-yellow-500 outline-none text-lg font-bold text-white transition-all"
                    disabled>
-            <div id="suggestions" class="absolute z-10 w-full border border-gray-800 rounded-md mt-1 bg-gray-900 max-h-48 overflow-y-auto hidden"></div>
+            <div id="suggestions" class="absolute z-10 w-full border border-gray-800 rounded-xl mt-1 bg-gray-900 max-h-48 overflow-y-auto hidden"></div>
         </div>
 
-        <div class="flex gap-2 mt-4">
+        <div class="flex gap-3">
             <button id="submitBtn" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl transition-all" disabled>SUBMIT</button>
-            <button id="spinBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all hidden">NEXT SPIN</button>
+            <button id="nextBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all hidden">NEXT SPIN</button>
         </div>
 
-        <div id="resultArea" class="mt-6 text-center min-h-[60px]">
+        <div id="resultArea" class="mt-5 text-center min-h-[50px]">
             <p id="resultMsg" class="text-2xl font-black italic uppercase"></p>
-            <p id="correctName" class="text-gray-400 mt-2 font-bold"></p>
+            <p id="correctName" class="text-gray-400 mt-1 font-bold"></p>
         </div>
 
         <div class="mt-4 flex justify-center">
@@ -77,149 +78,130 @@
         </div>
     </div>
 
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden">
+        <p class="text-yellow-400 text-2xl font-black animate-pulse uppercase tracking-widest">Loading...</p>
+    </div>
+
     <script>
-        const STAT_OPTIONS = [
-            "Points Per Game", "Rebounds Per Game", "Assists Per Game", "Steals Per Game",
-            "Blocks Per Game", "Turnovers Per Game", "Fouls Per Game", "Free Throw Attempts Per Game",
-            "Three-Pointers Attempted Per Game", "Shots Attempted Per Game", "Minutes Per Game"
-        ];
-        const POS_OPTIONS = ["PG", "SG", "SF", "PF", "C"];
-        const CONF_OPTIONS = ["Eastern", "Western"];
-
-        // currentWinner and currentClues are set together only when fetch completes
-        // Submit is disabled until then — no stale data possible
         let currentWinner = "";
-        let spinStreak = 0;
+        let streak = 0;
         let playerNames = [];
-        let isSpinning = false;
 
-        const spinSfx = new Audio('/static/spin.mp3');
-        const winSfx = new Audio('/static/win.mp3');
-        const clickSfx = new Audio('/static/click.mp3');
+        fetch("/all_players").then(r => r.json()).then(d => playerNames = d);
 
-        fetch("/all_players").then(res => res.json()).then(data => playerNames = data);
-
-        function setInputEnabled(enabled) {
-            document.getElementById('guessInput').disabled = !enabled;
-            document.getElementById('submitBtn').disabled = !enabled;
+        function setLoading(on) {
+            document.getElementById('loadingOverlay').classList.toggle('hidden', !on);
         }
 
-        async function triggerSpin() {
-            if (isSpinning) return;
-            isSpinning = true;
+        function revealClue(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('clue-hidden');
+            el.classList.add('clue-revealed');
+        }
 
-            // Lock input until data arrives and animation finishes
-            setInputEnabled(false);
+        async function loadSpin() {
+            // Reset UI
             currentWinner = "";
-
+            document.getElementById('guessInput').value = "";
+            document.getElementById('guessInput').disabled = true;
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
             document.getElementById('resultMsg').textContent = "";
             document.getElementById('correctName').textContent = "";
-            document.getElementById('guessInput').value = "";
+            document.getElementById('revealBtns').classList.add('hidden');
             document.getElementById('suggestions').classList.add('hidden');
-            document.getElementById('submitBtn').classList.remove('hidden');
-            document.getElementById('spinBtn').classList.add('hidden');
 
-            if (spinSfx) { spinSfx.currentTime = 0; spinSfx.play(); }
+            // Hide all clues
+            ['clue-stat','clue-season','clue-pos','clue-conf'].forEach(id => {
+                const el = document.getElementById(id);
+                el.textContent = "—";
+                el.classList.add('clue-hidden');
+                el.classList.remove('clue-revealed');
+            });
 
-            // Start shuffle animation
-            const shuffleInterval = setInterval(() => {
-                document.getElementById('stat-label').textContent = STAT_OPTIONS[Math.floor(Math.random() * STAT_OPTIONS.length)].toUpperCase();
-                document.getElementById('stat-val').textContent = (Math.random() * 32).toFixed(1);
-                document.getElementById('year-val').textContent = Math.floor(Math.random() * (2025 - 1954 + 1)) + 1954;
-                document.getElementById('pos-val').textContent = POS_OPTIONS[Math.floor(Math.random() * POS_OPTIONS.length)];
-                document.getElementById('conf-val').textContent = CONF_OPTIONS[Math.floor(Math.random() * CONF_OPTIONS.length)];
-            }, 60);
+            setLoading(true);
 
             try {
-                // Fetch real data — await BEFORE stopping animation
                 const res = await fetch('/spin_data');
                 if (!res.ok) throw new Error("Server error");
                 const data = await res.json();
 
-                // Stop reels left to right with real data
-                setTimeout(() => {
-                    document.getElementById('stat-label').textContent = data.clues.stat_name.toUpperCase();
-                    document.getElementById('stat-val').textContent = data.clues.stat_val;
-                    clickSfx.cloneNode(true).play();
-                }, 300);
+                // Set all clue text from real data
+                document.getElementById('clue-stat').textContent  = `${data.clues.stat_name}: ${data.clues.stat_val}`;
+                document.getElementById('clue-season').textContent = data.clues.season;
+                document.getElementById('clue-pos').textContent    = data.clues.pos;
+                document.getElementById('clue-conf').textContent   = data.clues.conf;
 
-                setTimeout(() => {
-                    document.getElementById('year-val').textContent = data.clues.season;
-                    clickSfx.cloneNode(true).play();
-                }, 700);
+                // Store winner only after data is confirmed
+                currentWinner = data.winner;
 
-                setTimeout(() => {
-                    document.getElementById('pos-val').textContent = data.clues.pos;
-                    clickSfx.cloneNode(true).play();
-                }, 1100);
+                // Reveal stat immediately, blur the rest
+                revealClue('clue-stat');
+                document.getElementById('revealBtns').classList.remove('hidden');
 
-                setTimeout(() => {
-                    clearInterval(shuffleInterval);
-                    document.getElementById('conf-val').textContent = data.clues.conf;
-                    clickSfx.cloneNode(true).play();
-                    if (spinSfx) { spinSfx.pause(); spinSfx.currentTime = 0; }
-
-                    // Only NOW set the winner and unlock input
-                    currentWinner = data.winner;
-                    setInputEnabled(true);
-                    isSpinning = false;
-                }, 1500);
+                // Unlock input
+                document.getElementById('guessInput').disabled = false;
+                document.getElementById('submitBtn').disabled = false;
 
             } catch (err) {
-                console.error("Spin error:", err);
-                clearInterval(shuffleInterval);
-                document.getElementById('stat-label').textContent = "ERROR";
-                isSpinning = false;
-                setInputEnabled(false);
+                console.error(err);
+                document.getElementById('clue-stat').textContent = "Error loading — try again";
+                revealClue('clue-stat');
+            } finally {
+                setLoading(false);
             }
         }
 
         document.getElementById('submitBtn').onclick = () => {
-            if (!currentWinner) return; // safety guard
+            if (!currentWinner) return;
             const guess = document.getElementById('guessInput').value.trim();
             const msg = document.getElementById('resultMsg');
 
             if (guess.toLowerCase() === currentWinner.toLowerCase()) {
-                spinStreak++;
-                winSfx.play();
-                msg.textContent = "SWISH!";
+                streak++;
+                msg.textContent = "✅ SWISH!";
                 msg.className = "text-2xl font-black italic text-green-500 uppercase";
                 document.getElementById('correctName').textContent = "";
             } else {
-                spinStreak = 0;
-                msg.textContent = "AIRBALL!";
+                streak = 0;
+                msg.textContent = "❌ AIRBALL!";
                 msg.className = "text-2xl font-black italic text-red-500 uppercase";
-                document.getElementById('correctName').textContent = `Correct answer: ${currentWinner}`;
+                document.getElementById('correctName').textContent = `Answer: ${currentWinner}`;
             }
-            document.getElementById('streakVal').textContent = spinStreak;
+
+            // Reveal all remaining clues on submit
+            ['clue-season','clue-pos','clue-conf'].forEach(revealClue);
+            document.getElementById('revealBtns').classList.add('hidden');
+            document.getElementById('streakVal').textContent = streak;
             document.getElementById('submitBtn').classList.add('hidden');
-            document.getElementById('spinBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.remove('hidden');
         };
 
-        const guessInput = document.getElementById('guessInput');
-        const suggestionsDiv = document.getElementById('suggestions');
-
-        guessInput.addEventListener('input', () => {
-            const query = guessInput.value.toLowerCase().trim();
-            if (query.length < 2) { suggestionsDiv.classList.add('hidden'); return; }
-            const matches = playerNames.filter(n => n.toLowerCase().includes(query)).slice(0, 8);
-            if (matches.length === 0) { suggestionsDiv.classList.add('hidden'); return; }
-            suggestionsDiv.innerHTML = matches.map(n => `
-                <div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white font-bold" 
+        // Autocomplete
+        const input = document.getElementById('guessInput');
+        const suggs = document.getElementById('suggestions');
+        input.addEventListener('input', () => {
+            const q = input.value.toLowerCase().trim();
+            if (q.length < 2) { suggs.classList.add('hidden'); return; }
+            const matches = playerNames.filter(n => n.toLowerCase().includes(q)).slice(0, 8);
+            if (!matches.length) { suggs.classList.add('hidden'); return; }
+            suggs.innerHTML = matches.map(n => `
+                <div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 text-white font-bold"
                      onclick="selectName('${n.replace(/'/g, "\\'")}')">
                     ${n}
-                </div>
-            `).join("");
-            suggestionsDiv.classList.remove('hidden');
+                </div>`).join('');
+            suggs.classList.remove('hidden');
         });
 
         function selectName(n) {
-            guessInput.value = n;
-            suggestionsDiv.classList.add('hidden');
+            input.value = n;
+            suggs.classList.add('hidden');
         }
 
-        document.getElementById('spinBtn').onclick = triggerSpin;
-        window.onload = triggerSpin;
+        document.getElementById('nextBtn').onclick = loadSpin;
+        window.onload = loadSpin;
     </script>
 </body>
 </html>
