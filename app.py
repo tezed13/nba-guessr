@@ -149,10 +149,17 @@ async def random_player(
             .sort_values("season", ascending=False)
         )
 
-        seasons = career.where(career.notna(), other=None).to_dict(orient="records")
+        import math
+        raw_seasons = career.to_dict(orient="records")
+        # Scrub every value — NaN/Inf are not JSON serializable
+        clean_seasons = [
+            {k: (None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v)
+             for k, v in row.items()}
+            for row in raw_seasons
+        ]
         return JSONResponse({
             "player_name": random_name,
-            "seasons": seasons,
+            "seasons": clean_seasons,
         })
 
     except Exception as e:
