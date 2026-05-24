@@ -2,71 +2,218 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NBA Guessr - Arcade Edition</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Guessr</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #000; color: #fff; }
-        .stats-table tr:nth-child(even) { background-color: #0a0a0a; }
-        .stats-table tr:hover { background-color: #111; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0d0d0f;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        /* Stat table */
+        .stat-table thead th {
+            background: #18181b;
+            color: #52525b;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            border-bottom: 1px solid #27272a;
+        }
+        .stat-table tbody tr {
+            border-bottom: 1px solid #1c1c1f;
+            transition: background 0.15s;
+        }
+        .stat-table tbody tr:last-child { border-bottom: none; }
+        .stat-table tbody tr:hover { background: #18181b; }
+        .stat-table tbody td {
+            padding: 11px 14px;
+            font-size: 13px;
+            color: #a1a1aa;
+        }
+        .stat-table tbody td.pts { color: #60a5fa; font-weight: 700; }
+        .stat-table tbody td.season-col { color: #52525b; font-weight: 600; }
+        .stat-table tbody td.team-col { color: #e4e4e7; font-weight: 600; }
+
+        /* Input */
+        #guessInput {
+            background: #18181b;
+            border: 1.5px solid #27272a;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 13px 16px;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        #guessInput:focus { border-color: #3b82f6; }
+        #guessInput::placeholder { color: #3f3f46; }
+
+        /* Suggestions */
+        #suggestions {
+            background: #18181b;
+            border: 1.5px solid #27272a;
+            border-radius: 10px;
+            margin-top: 6px;
+            overflow-y: auto;
+            max-height: 200px;
+        }
+        .suggestion-item {
+            padding: 11px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #d4d4d8;
+            cursor: pointer;
+            border-bottom: 1px solid #27272a;
+            transition: background 0.1s, color 0.1s;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: #3b82f6; color: #fff; }
+
+        /* Buttons */
+        .btn-primary {
+            background: #3b82f6;
+            color: #fff;
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: 0.05em;
+            padding: 13px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            text-transform: uppercase;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:active { transform: scale(0.98); }
+
+        .btn-secondary {
+            background: #27272a;
+            color: #a1a1aa;
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: 0.05em;
+            padding: 13px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+        }
+        .btn-secondary:hover { background: #3f3f46; color: #fff; }
+
+        /* Result banner */
+        .result-banner {
+            border-radius: 10px;
+            padding: 14px 20px;
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: 0.03em;
+            text-align: center;
+        }
+        .result-correct { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+        .result-wrong   { background: #450a0a; border: 1px solid #991b1b; color: #f87171; }
+
+        /* Streak pill */
+        .streak-pill {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 999px;
+            padding: 6px 18px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #52525b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .streak-pill span { color: #3b82f6; font-size: 18px; font-weight: 900; }
+
+        /* Player name reveal */
+        #playerNameDisplay {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            text-align: center;
+            min-height: 32px;
+        }
+
+        /* Loading skeleton pulse */
+        @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.9} }
+        .skeleton { animation: pulse 1.2s ease-in-out infinite; background: #18181b; border-radius: 4px; }
     </style>
 </head>
-<body class="min-h-screen p-4 flex flex-col items-center">
-    
+<body>
     <input type="hidden" id="startSeason" value="{{ start_season }}">
     <input type="hidden" id="endSeason" value="{{ end_season }}">
     <input type="hidden" id="types" value="{{ types }}">
 
-    <nav class="w-full max-w-5xl mb-6">
-        <a href="/" class="text-gray-500 hover:text-white font-bold transition">← BACK TO MENU</a>
-    </nav>
+    <div class="max-w-2xl mx-auto px-4 py-6">
 
-    <div class="w-full max-w-5xl bg-[#0a0a0a] border border-gray-800 rounded-[2rem] p-8 shadow-2xl">
-        
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-4xl font-black italic text-blue-500 uppercase">NBA GUESSR</h1>
-                <p class="text-gray-500 text-xs font-bold tracking-widest mt-1">SEASON RANGE: {{ start_season }} - {{ end_season }}</p>
+        <!-- Top bar -->
+        <div class="flex items-center justify-between mb-8">
+            <a href="/" class="text-zinc-600 hover:text-zinc-300 text-sm font-semibold transition">← Menu</a>
+            <div class="text-center">
+                <h1 class="text-xl font-black tracking-tight text-white">NBA GUESSR</h1>
+                <p class="text-zinc-600 text-xs font-semibold mt-0.5">{{ start_season }} – {{ end_season }}</p>
             </div>
-            <div class="bg-black border border-gray-800 px-6 py-2 rounded-full">
-                <span class="text-gray-500 font-bold text-xs uppercase">Streak:</span>
-                <span id="streakVal" class="text-blue-500 font-black text-xl ml-2">0</span>
+            <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
+        </div>
+
+        <!-- Stats card -->
+        <div class="rounded-2xl border border-zinc-800 overflow-hidden mb-5" style="background:#111113">
+            <div class="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
+                <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">Career Stats</p>
+                <p id="playerNameDisplay" class="text-zinc-700 tracking-widest">— — —</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full stat-table">
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Team</th>
+                            <th>G</th>
+                            <th>GS</th>
+                            <th>MP</th>
+                            <th>PTS</th>
+                            <th>REB</th>
+                            <th>AST</th>
+                        </tr>
+                    </thead>
+                    <tbody id="seasonsBody"></tbody>
+                </table>
             </div>
         </div>
 
-        <div class="overflow-x-auto mb-8 border border-gray-800 rounded-xl">
-            <table class="w-full text-left text-sm stats-table">
-                <thead class="bg-gray-900 text-gray-400 uppercase text-[10px] font-black tracking-tighter">
-                    <tr>
-                        <th class="p-4">Season</th>
-                        <th class="p-4">Tm</th>
-                        <th class="p-4">G</th>
-                        <th class="p-4">GS</th>
-                        <th class="p-4">MP</th>
-                        <th class="p-4 text-blue-400">PTS</th>
-                        <th class="p-4">AST</th>
-                        <th class="p-4">TRB</th>
-                    </tr>
-                </thead>
-                <tbody id="seasonsBody" class="font-medium text-gray-300"></tbody>
-            </table>
-        </div>
+        <!-- Guess card -->
+        <div class="rounded-2xl border border-zinc-800 p-5" style="background:#111113">
 
-        <div class="flex flex-col items-center border-t border-gray-800 pt-8">
-            <h2 id="playerNameDisplay" class="text-3xl font-black mb-6 text-gray-700 tracking-widest uppercase">??????</h2>
-            
-            <div class="w-full max-w-md relative">
-                <input type="text" id="guessInput" placeholder="TYPE PLAYER NAME..." 
-                       class="w-full bg-black border-2 border-gray-800 rounded-xl p-4 focus:border-blue-500 outline-none transition-all text-lg font-bold uppercase">
-                <div id="suggestions" class="absolute z-20 w-full bg-[#111] border border-gray-800 rounded-xl mt-1 max-h-48 overflow-y-auto hidden"></div>
+            <!-- Input + suggestions -->
+            <div class="relative mb-4">
+                <input type="text" id="guessInput" placeholder="Search player name...">
+                <div id="suggestions" class="absolute z-20 w-full hidden"></div>
             </div>
 
-            <div id="resultMsg" class="mt-4 h-8 font-black uppercase italic"></div>
+            <!-- Result banner (hidden until guess) -->
+            <div id="resultBanner" class="result-banner hidden mb-4"></div>
 
-            <div class="flex gap-4 mt-6 w-full max-w-md">
-                <button id="submitBtn" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl transition-all shadow-lg uppercase tracking-widest">Submit Guess</button>
-                <button id="nextBtn" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-4 rounded-xl transition-all hidden uppercase tracking-widest">Next Player</button>
+            <!-- Buttons -->
+            <div class="flex gap-3">
+                <button id="submitBtn" class="btn-primary flex-1">Submit Guess</button>
+                <button id="nextBtn" class="btn-secondary flex-1 hidden">Next Player →</button>
             </div>
         </div>
+
     </div>
 
     <script>
@@ -74,24 +221,19 @@
         let streak = 0;
         let allPlayers = [];
 
-        fetch('/all_players').then(r => r.json()).then(data => allPlayers = data);
+        fetch('/all_players').then(r => r.json()).then(d => allPlayers = d);
+
+        function fmt(val) {
+            return (val !== null && val !== undefined) ? val : '—';
+        }
 
         function resetUI() {
-            // Reset player display
-            const display = document.getElementById('playerNameDisplay');
-            display.textContent = "??????";
-            display.className = "text-3xl font-black mb-6 text-gray-700 tracking-widest uppercase";
-
-            // Clear guess input
-            document.getElementById('guessInput').value = "";
+            document.getElementById('playerNameDisplay').textContent = '— — —';
+            document.getElementById('playerNameDisplay').style.color = '#3f3f46';
+            document.getElementById('guessInput').value = '';
             document.getElementById('suggestions').classList.add('hidden');
-
-            // Clear result message
-            const msg = document.getElementById('resultMsg');
-            msg.textContent = "";
-            msg.className = "mt-4 h-8 font-black uppercase italic";
-
-            // Show submit, hide next
+            document.getElementById('resultBanner').classList.add('hidden');
+            document.getElementById('resultBanner').textContent = '';
             document.getElementById('submitBtn').classList.remove('hidden');
             document.getElementById('nextBtn').classList.add('hidden');
         }
@@ -100,63 +242,61 @@
             resetUI();
 
             const start = document.getElementById('startSeason').value;
-            const end = document.getElementById('endSeason').value;
-            // Strip any Python list artifacts like ['starters'] → starters
-            const types = document.getElementById('types').value.replace(/[\[\]'"]/g, "").trim();
-
+            const end   = document.getElementById('endSeason').value;
+            const types = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
             const tbody = document.getElementById('seasonsBody');
-            tbody.innerHTML = "<tr><td colspan='8' class='p-10 text-center text-gray-500 animate-pulse'>LOADING...</td></tr>";
+
+            // Skeleton rows while loading
+            tbody.innerHTML = Array(4).fill(`
+                <tr>
+                    ${Array(8).fill('<td><div class="skeleton h-4 w-full" style="min-width:32px">&nbsp;</div></td>').join('')}
+                </tr>`).join('');
 
             try {
-                const response = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || "Server Error");
-                }
+                const res = await fetch(`/random_player?start_season=${start}&end_season=${end}&types=${types}`);
+                if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
+                const data = await res.json();
+                currentPlayerName = data.player_name;
 
-                const data = await response.json();
-                currentPlayerName = data.player_name;  // Set the new player
-
-                tbody.innerHTML = "";
+                tbody.innerHTML = '';
                 data.seasons.forEach(s => {
-                    const row = `
-                        <tr class="border-b border-gray-900">
-                            <td class="p-4 text-gray-500">${s.season ?? '-'}</td>
-                            <td class="p-4">${s.tm ?? '-'}</td>
-                            <td class="p-4">${s.g ?? '-'}</td>
-                            <td class="p-4">${s.gs ?? '-'}</td>
-                            <td class="p-4">${s.mp_per_game ?? s.mp ?? '-'}</td>
-                            <td class="p-4 text-blue-400 font-bold">${s.pts_per_game ?? s.pts ?? '-'}</td>
-                            <td class="p-4">${s.ast_per_game ?? s.ast ?? '-'}</td>
-                            <td class="p-4">${s.trb_per_game ?? s.trb ?? '-'}</td>
-                        </tr>
-                    `;
-                    tbody.insertAdjacentHTML('beforeend', row);
+                    tbody.insertAdjacentHTML('beforeend', `
+                        <tr>
+                            <td class="season-col">${fmt(s.season)}</td>
+                            <td class="team-col">${fmt(s.tm)}</td>
+                            <td>${fmt(s.g)}</td>
+                            <td>${fmt(s.gs)}</td>
+                            <td>${fmt(s.mp_per_game ?? s.mp)}</td>
+                            <td class="pts">${fmt(s.pts_per_game ?? s.pts)}</td>
+                            <td>${fmt(s.trb_per_game ?? s.trb)}</td>
+                            <td>${fmt(s.ast_per_game ?? s.ast)}</td>
+                        </tr>`);
                 });
             } catch (err) {
-                console.error("Fetch Error:", err);
-                tbody.innerHTML = `<tr><td colspan='8' class='p-10 text-center text-red-500'>Error: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
             }
         }
 
         document.getElementById('submitBtn').onclick = () => {
             const guess = document.getElementById('guessInput').value.trim().toLowerCase();
-            const display = document.getElementById('playerNameDisplay');
-            const msg = document.getElementById('resultMsg');
+            const banner = document.getElementById('resultBanner');
+            const nameEl = document.getElementById('playerNameDisplay');
+            const correct = guess === currentPlayerName.toLowerCase();
 
-            if (guess === currentPlayerName.toLowerCase()) {
+            if (correct) {
                 streak++;
-                msg.textContent = "✅ SWISH! NOTHING BUT NET";
-                msg.className = "mt-4 h-8 font-black uppercase italic text-green-500";
-                display.className = "text-3xl font-black mb-6 text-green-500 uppercase tracking-normal";
+                banner.textContent = `✓ Correct! ${currentPlayerName}`;
+                banner.className = 'result-banner result-correct mb-4';
+                nameEl.style.color = '#4ade80';
             } else {
                 streak = 0;
-                msg.textContent = "❌ AIRBALL! CLANK.";
-                msg.className = "mt-4 h-8 font-black uppercase italic text-red-500";
-                display.className = "text-3xl font-black mb-6 text-red-500 uppercase tracking-normal";
+                banner.textContent = `✗ Airball! It was ${currentPlayerName}`;
+                banner.className = 'result-banner result-wrong mb-4';
+                nameEl.style.color = '#f87171';
             }
 
-            display.textContent = currentPlayerName;
+            nameEl.textContent = currentPlayerName;
+            banner.classList.remove('hidden');
             document.getElementById('streakVal').textContent = streak;
             document.getElementById('submitBtn').classList.add('hidden');
             document.getElementById('nextBtn').classList.remove('hidden');
@@ -166,22 +306,28 @@
         const input = document.getElementById('guessInput');
         const suggs = document.getElementById('suggestions');
 
-        input.oninput = () => {
+        input.addEventListener('input', () => {
             const val = input.value.toLowerCase();
             if (val.length < 2) { suggs.classList.add('hidden'); return; }
-            const matches = allPlayers.filter(p => p.toLowerCase().includes(val)).slice(0, 6);
-            if (matches.length === 0) { suggs.classList.add('hidden'); return; }
-            suggs.innerHTML = matches.map(m => `
-                <div class="p-3 hover:bg-blue-600 cursor-pointer font-bold border-b border-gray-800" 
-                     onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>
-            `).join('');
+            const matches = allPlayers.filter(p => p.toLowerCase().includes(val)).slice(0, 7);
+            if (!matches.length) { suggs.classList.add('hidden'); return; }
+            suggs.innerHTML = matches.map(m =>
+                `<div class="suggestion-item" onclick="selectName('${m.replace(/'/g, "\\'")}')">${m}</div>`
+            ).join('');
             suggs.classList.remove('hidden');
-        };
+        });
 
         function selectName(name) {
             input.value = name;
             suggs.classList.add('hidden');
         }
+
+        // Close suggestions on outside click
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#guessInput') && !e.target.closest('#suggestions')) {
+                suggs.classList.add('hidden');
+            }
+        });
 
         document.getElementById('nextBtn').onclick = loadPlayer;
         window.onload = loadPlayer;
