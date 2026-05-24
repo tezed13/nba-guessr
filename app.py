@@ -100,6 +100,14 @@ async def spin_page(request: Request):
 # API routes
 # ---------------------------------------------------------------------------
 
+@app.get("/debug_columns")
+async def debug_columns():
+    import math
+    safe = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
+            for k, v in stats_df.iloc[0].to_dict().items()} if not stats_df.empty else {}
+    return JSONResponse({"columns": stats_df.columns.tolist(), "sample_row": safe})
+
+
 @app.get("/all_players")
 async def all_players():
     if stats_df.empty:
@@ -173,39 +181,61 @@ async def spin_data():
         return JSONResponse({"error": "No data"}, status_code=500)
 
     try:
-        # Only use stat keys that actually exist as columns in the DataFrame
         available_stat_keys = [k for k in STAT_MAP if k in stats_df.columns]
         if not available_stat_keys:
             return JSONResponse({"error": "No matching stat columns found in CSV"}, status_code=500)
 
         chosen_stat_key = random.choice(available_stat_keys)
 
-        # Pick a season that has qualified players (>40 games) for the chosen stat
-        # Retry up to 10 times to avoid an infinite recursion loop
+        # For traded players the CSV has multiple rows (one per team + a "TOT" total row).
+        # Keep only the TOT row when a player appears more than once in a season,
+        # otherwise keep their single row. This prevents the same player appearing
+        # twice and ensures stats are season totals, not partial-team splits.
+        def dedup_season(df):
+            counts = df.groupby("player")["player"].transform("count")
+            # Keep TOT rows for multi-team players, keep all rows for single-team players
+            return df[(counts == 1) | (df["tm"] == "TOT")]
+
         for _ in range(10):
-            available_seasons = stats_df["season"].unique().tolist()
-            chosen_season = random.choice(available_seasons)
+            chosen_season = random.choice(stats_df["season"].unique().tolist())
 
             season_df = stats_df[
                 (stats_df["season"] == chosen_season) &
-                (stats_df["g"] > 40) &
+                (stats_df["g"] >= 41) &
                 stats_df[chosen_stat_key].notna()
             ].copy()
+
+            season_df = dedup_season(season_df)
 
             if not season_df.empty:
                 break
         else:
             return JSONResponse({"error": "Could not find valid season/stat combination"}, status_code=500)
 
-        # Find the stat leader
-        leader_row = season_df.sort_values(by=chosen_stat_key, ascending=False).iloc[0]
-        team_abbrev = str(leader_row.get("tm", "")).upper()
+        # Sort descending and take the true leader
+        season_df = season_df.sort_values(by=chosen_stat_key, ascending=False)
+        leader_row = season_df.iloc[0]
+
+        stat_val = float(leader_row[chosen_stat_key])
+        team_abbrev = str(leader_row.get("tm", "TOT")).upper()
+
+        # For traded players TOT has no conference — use their last real team
+        if team_abbrev == "TOT":
+            player_rows = stats_df[
+                (stats_df["player"] == leader_row["player"]) &
+                (stats_df["season"] == chosen_season) &
+                (stats_df["tm"] != "TOT")
+            ]
+            if not player_rows.empty:
+                team_abbrev = player_rows.iloc[-1]["tm"].upper()
+
+        print(f"SPIN: {leader_row['player']} | {STAT_MAP[chosen_stat_key]}: {stat_val} | {chosen_season}")
 
         return JSONResponse({
             "winner": leader_row["player"],
             "clues": {
                 "stat_name": STAT_MAP[chosen_stat_key],
-                "stat_val": str(round(float(leader_row[chosen_stat_key]), 1)),
+                "stat_val": str(round(stat_val, 1)),
                 "season": str(chosen_season),
                 "pos": leader_row.get("pos", "N/A"),
                 "conf": TEAM_TO_CONF.get(team_abbrev, "Unknown"),
