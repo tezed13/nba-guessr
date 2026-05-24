@@ -303,16 +303,25 @@
     <script>
         // ── State ──────────────────────────────────────────────
         let currentPlayerName = "";
-        let streak = 0;
+        let streak = parseInt(localStorage.getItem('guessr_cur') || '0');
+        let bestStreak = parseInt(localStorage.getItem('guessr_best') || '0');
         let allPlayers = [];
-        let maxGuesses = 1;
         let guessesUsed = 0;
         let roundOver = false;
 
-        // Read initial values from hidden inputs
+        // Read max_guesses from URL, fall back to 1
+        const urlParams = new URLSearchParams(window.location.search);
+        let maxGuesses = parseInt(urlParams.get('max_guesses') || '1');
+
+        // Read season/types from hidden inputs
         let activeSeason  = { start: parseInt(document.getElementById('startSeason').value),
                                end:   parseInt(document.getElementById('endSeason').value) };
         let activeTypes   = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
+
+        // Restore streak display on load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('streakVal').textContent = streak;
+        });
 
         fetch('/all_players').then(r => r.json()).then(d => allPlayers = d);
 
@@ -451,10 +460,15 @@
 
             if (correct) {
                 streak++;
+                if (streak > bestStreak) {
+                    bestStreak = streak;
+                    localStorage.setItem('guessr_best', bestStreak);
+                }
+                localStorage.setItem('guessr_cur', streak);
                 document.getElementById('streakVal').textContent = streak;
                 document.getElementById('playerNameDisplay').textContent = currentPlayerName;
                 document.getElementById('playerNameDisplay').style.color = '#4ade80';
-                showBanner(`✓ ${currentPlayerName}`, 'ok');
+                showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`, 'ok');
                 endRound();
             } else {
                 const guessesLeft = maxGuesses - guessesUsed;
@@ -465,10 +479,11 @@
                 } else {
                     // Out of guesses
                     streak = 0;
+                    localStorage.setItem('guessr_cur', 0);
                     document.getElementById('streakVal').textContent = streak;
                     document.getElementById('playerNameDisplay').textContent = currentPlayerName;
                     document.getElementById('playerNameDisplay').style.color = '#f87171';
-                    showBanner(`✗ It was ${currentPlayerName}`, 'err');
+                    showBanner(`✗ It was ${currentPlayerName} — Best: ${bestStreak}`, 'err');
                     endRound();
                 }
             }

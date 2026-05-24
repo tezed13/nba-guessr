@@ -85,7 +85,8 @@
 
     <script>
         let currentWinner = "";
-        let streak = 0;
+        let streak = parseInt(localStorage.getItem('spin_cur') || '0');
+        let bestStreak = parseInt(localStorage.getItem('spin_best') || '0');
         let playerNames = [];
 
         fetch("/all_players").then(r => r.json()).then(d => playerNames = d);
@@ -161,14 +162,20 @@
 
             if (guess.toLowerCase() === currentWinner.toLowerCase()) {
                 streak++;
-                msg.textContent = "✅ SWISH!";
+                if (streak > bestStreak) {
+                    bestStreak = streak;
+                    localStorage.setItem('spin_best', bestStreak);
+                }
+                localStorage.setItem('spin_cur', streak);
+                msg.textContent = `✅ SWISH! Streak: ${streak} (Best: ${bestStreak})`;
                 msg.className = "text-2xl font-black italic text-green-500 uppercase";
                 document.getElementById('correctName').textContent = "";
             } else {
                 streak = 0;
+                localStorage.setItem('spin_cur', 0);
                 msg.textContent = "❌ AIRBALL!";
                 msg.className = "text-2xl font-black italic text-red-500 uppercase";
-                document.getElementById('correctName').textContent = `Answer: ${currentWinner}`;
+                document.getElementById('correctName').textContent = `Answer: ${currentWinner} — Best: ${bestStreak}`;
             }
 
             // Reveal all remaining clues on submit
