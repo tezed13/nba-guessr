@@ -149,9 +149,10 @@ async def random_player(
             .sort_values("season", ascending=False)
         )
 
+        seasons = career.where(career.notna(), other=None).to_dict(orient="records")
         return JSONResponse({
             "player_name": random_name,
-            "seasons": career.to_dict(orient="records"),
+            "seasons": seasons,
         })
 
     except Exception as e:
