@@ -260,14 +260,16 @@
 
         <!-- Stats area (scrollable) -->
         <div id="statsArea">
-            <div style="padding:8px 4px 6px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                    <p style="font-size:10px;font-weight:700;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Career Stats</p>
-                    <p id="playerNameDisplay">— — —</p>
-                </div>
-                <div id="hintBadges" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+            <div style="padding:8px 4px 6px;display:flex;align-items:center;justify-content:space-between">
+                <p style="font-size:10px;font-weight:700;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Career Stats</p>
+                <p id="playerNameDisplay">— — —</p>
             </div>
-            <div style="border-radius:14px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
+            <!-- Sticky hints bar -->
+        <div style="position:sticky;top:0;z-index:40;background:#0d0d0f;padding:8px 0 6px;border-bottom:1px solid #1c1c1f;margin-bottom:8px">
+            <div id="hintBadges" style="display:flex;gap:6px;flex-wrap:wrap;min-height:26px"></div>
+        </div>
+
+        <div style="border-radius:14px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
                 <div style="overflow-x:auto">
                     <table class="stat-table">
                         <thead>
@@ -494,7 +496,14 @@
         // ── Submit guess ───────────────────────────────────────
         document.getElementById('submitBtn').addEventListener('click', () => {
             if (roundOver || !currentPlayerName) return;
-            const guess   = document.getElementById('guessInput').value.trim();
+            const guess = document.getElementById('guessInput').value.trim();
+            const isValidPlayer = allPlayers.some(p => norm(p) === norm(guess));
+            if (!isValidPlayer) {
+                const inp = document.getElementById('guessInput');
+                inp.style.borderColor = '#ef4444';
+                setTimeout(() => inp.style.borderColor = '', 800);
+                return;
+            }
             const correct = guess.toLowerCase() === currentPlayerName.toLowerCase();
 
             markDot(guessesUsed, correct);

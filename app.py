@@ -29,7 +29,8 @@ try:
     stats_df = pd.read_csv(csv_path)
     stats_df.columns = [c.lower() for c in stats_df.columns]
     stats_df["season"] = stats_df["season"].astype(int)
-    print(f"Loaded {len(stats_df)} stats rows.")
+    stats_df = stats_df[stats_df["lg"] == "NBA"].copy()  # exclude ABA
+    print(f"Loaded {len(stats_df)} NBA rows.")
 except Exception as e:
     stats_df = pd.DataFrame()
     print(f"Error loading stats CSV: {e}")
@@ -356,11 +357,15 @@ async def spin_data():
             # Keep TOT rows for multi-team players, keep all rows for single-team players
             return df[(counts == 1) | (df["team"].str.match(r"\d+TM"))]
 
-        for _ in range(10):
-            chosen_season = random.choice(stats_df["season"].unique().tolist())
+        # NBA seasons only (ABA already filtered at load, but be explicit)
+        nba_seasons = stats_df[stats_df["lg"] == "NBA"]["season"].unique().tolist()
+
+        for _ in range(20):
+            chosen_season = random.choice(nba_seasons)
 
             season_df = stats_df[
                 (stats_df["season"] == chosen_season) &
+                (stats_df["lg"] == "NBA") &
                 (stats_df["g"] >= 41) &
                 stats_df[chosen_stat_key].notna()
             ].copy()
@@ -379,17 +384,34 @@ async def spin_data():
         stat_val = float(leader_row[chosen_stat_key])
         team_abbrev = str(leader_row.get("team", "")).upper()
 
-        # For traded players TOT has no conference — use their last real team
-        if re.match(r"\d+TM", team_abbrev):  # traded player — find real last team
+        # For traded players — find the team with most games played that season
+        if re.match(r"\d+TM", team_abbrev):
             player_rows = stats_df[
                 (stats_df["player"] == leader_row["player"]) &
                 (stats_df["season"] == chosen_season) &
                 (~stats_df["team"].str.match(r"\d+TM", na=False))
-            ]
+            ].copy()
             if not player_rows.empty:
-                team_abbrev = player_rows.iloc[-1]["team"].upper()
+                # Pick team with most games played
+                team_abbrev = player_rows.sort_values("g", ascending=False).iloc[0]["team"].upper()
 
-        print(f"SPIN: {leader_row['player']} | {STAT_MAP[chosen_stat_key]}: {stat_val} | {chosen_season}")
+        # Final fallback — if still unknown, skip this result and try again
+        conf = TEAM_TO_CONF.get(team_abbrev, "")
+        if not conf:
+            # Try to find any team for this player that maps to a known conference
+            player_teams = stats_df[
+                (stats_df["player"] == leader_row["player"]) &
+                (stats_df["season"] == chosen_season) &
+                (~stats_df["team"].str.match(r"\d+TM", na=False))
+            ]["team"].tolist()
+            for t in player_teams:
+                c = TEAM_TO_CONF.get(t.upper(), "")
+                if c:
+                    conf = c
+                    team_abbrev = t.upper()
+                    break
+
+        print(f"SPIN: {leader_row['player']} | {STAT_MAP[chosen_stat_key]}: {stat_val} | {chosen_season} | {team_abbrev} ({conf})")
 
         return JSONResponse({
             "winner": leader_row["player"],
@@ -398,7 +420,7 @@ async def spin_data():
                 "stat_val": str(round(stat_val, 1)),
                 "season": str(chosen_season),
                 "pos": leader_row.get("pos", "N/A"),
-                "conf": TEAM_TO_CONF.get(team_abbrev, "Unknown"),
+                "conf": conf if conf else "Unknown",
             },
         })
 

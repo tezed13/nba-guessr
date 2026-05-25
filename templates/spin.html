@@ -345,6 +345,14 @@
         // ── Submit ────────────────────────────────────────────
         document.getElementById('submitBtn').onclick = () => {
             if (!currentWinner) return;
+            const rawGuess = document.getElementById('guessInput').value.trim();
+            // Block submit if typed value doesn't match any known player
+            const isValidPlayer = playerNames.some(p => norm(p) === norm(rawGuess));
+            if (!isValidPlayer) {
+                document.getElementById('guessInput').style.borderColor = '#ef4444';
+                setTimeout(() => document.getElementById('guessInput').style.borderColor = '', 800);
+                return;
+            }
             const guess = document.getElementById('guessInput').value.trim();
             const banner = document.getElementById('resultBanner');
             const correct = guess.toLowerCase() === currentWinner.toLowerCase();
@@ -377,19 +385,28 @@
             return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
         }
 
-        input.addEventListener('input', () => {
-            const q = norm(input.value.trim());
-            if (q.length < 2) { suggs.classList.add('hidden'); return; }
+        function matchPlayers(players, val) {
+            const q = norm(val.trim());
+            if (q.length < 2) return [];
             const lastNameMatches  = [];
             const firstNameMatches = [];
-            playerNames.forEach(p => {
-                const parts = norm(p).split(' ');
+            const fullNameMatches  = [];
+            players.forEach(p => {
+                const np = norm(p);
+                const parts = np.split(' ');
                 const firstName = parts[0] || '';
                 const lastName  = parts.slice(1).join(' ') || '';
-                if (lastName.startsWith(q))       lastNameMatches.push(p);
-                else if (firstName.startsWith(q)) firstNameMatches.push(p);
+                if (lastName.startsWith(q))                                          lastNameMatches.push(p);
+                else if (firstName.startsWith(q))                                    firstNameMatches.push(p);
+                else if (np.startsWith(q))                                           fullNameMatches.push(p);
+                else if (np.replace(/[^a-z0-9]/g,'').includes(q.replace(/[^a-z0-9]/g,''))) fullNameMatches.push(p);
             });
-            const matches = [...lastNameMatches, ...firstNameMatches];
+            return [...lastNameMatches, ...firstNameMatches, ...fullNameMatches];
+        }
+
+        input.addEventListener('input', () => {
+            const matches = matchPlayers(playerNames, input.value);
+            if (!matches.length) { suggs.classList.add('hidden'); return; }
             if (!matches.length) { suggs.classList.add('hidden'); return; }
             suggs.innerHTML = matches.map(n => {
                 const safe = n.replace(/\\/g, '\\\\').replace(/'/g, "\'");
