@@ -829,10 +829,15 @@
             document.getElementById('playerNameDisplay').style.color = '#4ade80';
             showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`, 'ok');
 
-            // Queue leaderboard score
-            const catKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
-            pendingScoreKey = catKey;
-            pendingStreak   = streak;
+            // Save score silently on win — no drawer interruption
+            const catKey    = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+            const savedName = localStorage.getItem(LB_NAME_KEY) || '';
+            if (savedName) {
+                recordWin(catKey, savedName, streak);
+            } else {
+                pendingScoreKey = catKey;
+                pendingStreak   = streak;
+            }
 
             endRound(true);
         } else {
@@ -859,9 +864,9 @@
         document.getElementById('guessInput').value = '';
         document.getElementById('suggestions').classList.add('hidden');
 
-        // Auto-open leaderboard on win to let player save score
-        if (won) {
-            setTimeout(() => openLB(true), 600);
+        // Only open leaderboard on loss
+        if (!won) {
+            setTimeout(() => openLB(false), 600);
         }
     }
 
