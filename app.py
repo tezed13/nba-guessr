@@ -228,9 +228,16 @@ async def random_player(
             return JSONResponse({"error": "No players in this year range"}, status_code=404)
 
         # Filter by difficulty (games started)
-        diff_mask = pd.Series(False, index=pool.index)
+        # Starters: must have started 58+ games in 3+ seasons within the range
         if "starters" in type_list or "all" in type_list:
-            diff_mask |= pool["gs"] >= 40
+            qualifier = pool[pool["gs"] >= 58].groupby("player").size()
+            starter_names = qualifier[qualifier >= 3].index.tolist()
+        else:
+            starter_names = []
+
+        diff_mask = pd.Series(False, index=pool.index)
+        if starter_names:
+            diff_mask |= pool["player"].isin(starter_names)
         if "bench" in type_list or "all" in type_list:
             diff_mask |= (pool["gs"] >= 5) & (pool["gs"] < 40)
         if "endbench" in type_list or "all" in type_list:
@@ -241,7 +248,12 @@ async def random_player(
             filtered = pool  # fallback: use full pool
 
         # Pick a random player and return their full career stats
-        random_name = random.choice(filtered["player"].unique())
+        # For starters, pick only from qualified names to avoid bench players sneaking in
+        if "starters" in type_list and starter_names and not ("bench" in type_list or "endbench" in type_list or "all" in type_list):
+            eligible = [p for p in filtered["player"].unique() if p in starter_names]
+            random_name = random.choice(eligible) if eligible else random.choice(filtered["player"].unique())
+        else:
+            random_name = random.choice(filtered["player"].unique())
         career_raw = stats_df[stats_df["player"] == random_name].copy()
 
         # ── Normalize traded-player rows ──────────────────────────────────────
