@@ -385,7 +385,7 @@
                 </table>
             </div>
 
-            <button class="btn btn-dim" style="width:100%;margin-top:14px;font-size:12px" onclick="if(confirm('Clear all leaderboard data?')){clearLeaderboard()}">Reset Leaderboard</button>
+
         </div>
     </div>
 
@@ -453,20 +453,19 @@
     // LEADERBOARD ENGINE
     // ══════════════════════════════════════════════════════════════
 
-    // Storage key: 'nba_lb_v1'
-    // Structure: { [categoryKey]: [ {name, wins, bestStreak, lastPlayed}, ... ] }
+    // ══════════════════════════════════════════════════════════════
+    // GLOBAL LEADERBOARD ENGINE  (API-backed)
     // Category key format: "{startYear}-{endYear}_{types}_{maxGuesses}g"
+    // Player name persisted in localStorage so they only type it once.
+    // ══════════════════════════════════════════════════════════════
 
-    const LB_KEY = 'nba_lb_v1';
     const LB_NAME_KEY = 'nba_lb_name';
-    const MAX_LB_ENTRIES = 10;
 
     function lbCategoryKey(start, end, types, maxG) {
         return `${start}-${end}_${types}_${maxG}g`;
     }
 
     function lbCategoryLabel(key) {
-        // "2000-2025_starters_3g" → human readable
         const m = key.match(/^(\d+)-(\d+)_(.+)_(\d+)g$/);
         if (!m) return key;
         const [, start, end, types, maxG] = m;
@@ -494,96 +493,90 @@
         return `${start}–${end} · ${typeShort} · ${maxG}G`;
     }
 
-    function loadLB() {
-        try { return JSON.parse(localStorage.getItem(LB_KEY) || '{}'); } catch { return {}; }
+    function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    function saveLB(data) {
-        localStorage.setItem(LB_KEY, JSON.stringify(data));
-    }
-
-    function recordWin(catKey, name, currentStreak) {
-        const lb = loadLB();
-        if (!lb[catKey]) lb[catKey] = [];
-        const existing = lb[catKey].find(e => e.name.toLowerCase() === name.toLowerCase());
-        if (existing) {
-            existing.wins++;
-            if (currentStreak > existing.bestStreak) existing.bestStreak = currentStreak;
-            existing.lastPlayed = Date.now();
-        } else {
-            lb[catKey].push({ name, wins: 1, bestStreak: currentStreak, lastPlayed: Date.now() });
+    // POST a win to the server
+    async function recordWin(catKey, name, currentStreak) {
+        try {
+            await fetch('/leaderboard', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, category: catKey, streak: currentStreak }),
+            });
+        } catch (err) {
+            console.warn('Leaderboard save failed:', err);
         }
-        // Sort: primary = bestStreak desc, secondary = wins desc
-        lb[catKey].sort((a, b) => b.bestStreak - a.bestStreak || b.wins - a.wins);
-        // Trim to top MAX_LB_ENTRIES
-        lb[catKey] = lb[catKey].slice(0, MAX_LB_ENTRIES);
-        saveLB(lb);
     }
 
-    function renderLB(activeKey) {
-        const lb = loadLB();
-        const allKeys = Object.keys(lb);
-
-        // Build tabs — always include current category even if empty
+    // Fetch + render one category tab
+    async function renderLB(activeKey) {
         const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
-        const tabKeys = [...new Set([currentKey, ...allKeys])];
+
+        // Tabs — keep track of which categories have been viewed this session
+        if (!lbKnownKeys.has(activeKey))  lbKnownKeys.add(activeKey);
+        if (!lbKnownKeys.has(currentKey)) lbKnownKeys.add(currentKey);
 
         const tabsEl = document.getElementById('lbTabs');
-        tabsEl.innerHTML = tabKeys.map(k => {
+        tabsEl.innerHTML = [...lbKnownKeys].map(k => {
             const isCurrent = k === currentKey;
             const isActive  = k === activeKey;
             return `<button class="lb-tab${isActive ? ' active' : ''}" onclick="renderLB('${k}')">${lbShortLabel(k)}${isCurrent ? ' ●' : ''}</button>`;
         }).join('');
 
-        // Meta info
         document.getElementById('lbMeta').textContent = lbCategoryLabel(activeKey);
 
-        // Table
-        const entries = lb[activeKey] || [];
+        // Show loading state
         const tbody = document.getElementById('lbBody');
-        const playerName = localStorage.getItem(LB_NAME_KEY) || '';
+        tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty" style="padding:24px">Loading…</div></td></tr>`;
 
-        if (!entries.length) {
-            tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty">No scores yet for this category.<br>Win a round to appear here!</div></td></tr>`;
-            return;
+        try {
+            const res = await fetch(`/leaderboard?category=${encodeURIComponent(activeKey)}`);
+            const entries = await res.json();
+            const savedName = localStorage.getItem(LB_NAME_KEY) || '';
+
+            if (!entries.length) {
+                tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty">No scores yet for this category.<br>Win a round to appear here!</div></td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = entries.map((e, i) => {
+                const isYou = savedName && e.name.toLowerCase() === savedName.toLowerCase();
+                const rankClass = i === 0 ? 'rank-gold' : i === 1 ? 'rank-silver' : i === 2 ? 'rank-bronze' : '';
+                const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+                return `<tr class="${isYou ? 'you-row' : ''}">
+                    <td class="rank ${rankClass}">${rankEmoji}</td>
+                    <td class="name-cell">${escHtml(e.name)}${isYou ? ' <span style="font-size:10px;color:#52525b">(you)</span>' : ''}</td>
+                    <td>${e.wins}W</td>
+                    <td class="score-cell">${e.best_streak} 🔥</td>
+                </tr>`;
+            }).join('');
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty" style="color:#f87171">Failed to load scores.</div></td></tr>`;
         }
-
-        tbody.innerHTML = entries.map((e, i) => {
-            const isYou = playerName && e.name.toLowerCase() === playerName.toLowerCase();
-            const rankClass = i === 0 ? 'rank-gold' : i === 1 ? 'rank-silver' : i === 2 ? 'rank-bronze' : '';
-            const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
-            return `<tr class="${isYou ? 'you-row' : ''}">
-                <td class="rank ${rankClass}">${rankEmoji}</td>
-                <td class="name-cell">${escHtml(e.name)}${isYou ? ' <span style="font-size:10px;color:#52525b">(you)</span>' : ''}</td>
-                <td>${e.wins}W</td>
-                <td class="score-cell">${e.bestStreak} 🔥</td>
-            </tr>`;
-        }).join('');
     }
 
-    function escHtml(s) {
-        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
+    // Track which category tabs have been seen this session
+    const lbKnownKeys = new Set();
 
-    // ── Pending score (set after a win, before name entered) ──
+    // ── Pending score (set after a win, cleared after save) ──
     let pendingScoreKey = null;
     let pendingStreak   = 0;
 
-    function openLB(showNameEntry = false) {
+    async function openLB(showNameEntry = false) {
         const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
-        renderLB(currentKey);
-
         const nameSection = document.getElementById('nameEntrySection');
-        const savedName = localStorage.getItem(LB_NAME_KEY) || '';
+        const savedName   = localStorage.getItem(LB_NAME_KEY) || '';
 
         if (showNameEntry && pendingScoreKey) {
             if (savedName) {
-                // Auto-save with existing name, no prompt needed
-                recordWin(pendingScoreKey, savedName, pendingStreak);
+                // Known player — save silently then show board
+                await recordWin(pendingScoreKey, savedName, pendingStreak);
                 pendingScoreKey = null;
-                renderLB(currentKey);
                 nameSection.classList.remove('visible');
             } else {
+                // New player — ask for name first
                 nameSection.classList.add('visible');
                 document.getElementById('lbNameInput').value = '';
                 setTimeout(() => document.getElementById('lbNameInput').focus(), 350);
@@ -593,13 +586,14 @@
         }
 
         document.getElementById('lbDrawer').classList.add('open');
+        renderLB(currentKey);
     }
 
     function closeLB() {
         document.getElementById('lbDrawer').classList.remove('open');
     }
 
-    function saveScore() {
+    async function saveScore() {
         const rawName = document.getElementById('lbNameInput').value.trim();
         if (!rawName) {
             document.getElementById('lbNameInput').style.borderColor = '#ef4444';
@@ -608,16 +602,10 @@
         }
         localStorage.setItem(LB_NAME_KEY, rawName);
         if (pendingScoreKey) {
-            recordWin(pendingScoreKey, rawName, pendingStreak);
+            await recordWin(pendingScoreKey, rawName, pendingStreak);
             pendingScoreKey = null;
         }
         document.getElementById('nameEntrySection').classList.remove('visible');
-        const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
-        renderLB(currentKey);
-    }
-
-    function clearLeaderboard() {
-        localStorage.removeItem(LB_KEY);
         const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
         renderLB(currentKey);
     }

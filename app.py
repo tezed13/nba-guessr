@@ -1,11 +1,13 @@
 import random
 import re
+import sqlite3
 import pandas as pd
 from pathlib import Path
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -16,6 +18,37 @@ BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+# ---------------------------------------------------------------------------
+# Leaderboard DB
+# ---------------------------------------------------------------------------
+
+DB_PATH = BASE_DIR / "leaderboard.db"
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scores (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL COLLATE NOCASE,
+                category    TEXT    NOT NULL,
+                wins        INTEGER NOT NULL DEFAULT 0,
+                best_streak INTEGER NOT NULL DEFAULT 0,
+                updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )
+        """)
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_name_cat
+            ON scores (name, category)
+        """)
+        conn.commit()
+
+init_db()
 
 # ---------------------------------------------------------------------------
 # Load & normalise CSV once at startup
@@ -29,13 +62,12 @@ try:
     stats_df = pd.read_csv(csv_path)
     stats_df.columns = [c.lower() for c in stats_df.columns]
     stats_df["season"] = stats_df["season"].astype(int)
-    stats_df = stats_df[stats_df["lg"] == "NBA"].copy()  # exclude ABA
+    stats_df = stats_df[stats_df["lg"] == "NBA"].copy()
     print(f"Loaded {len(stats_df)} NBA rows.")
 except Exception as e:
     stats_df = pd.DataFrame()
     print(f"Error loading stats CSV: {e}")
 
-# Player info — height, weight, HOF
 try:
     info_df = pd.read_csv(info_path)
     info_df.columns = [c.lower() for c in info_df.columns]
@@ -50,14 +82,12 @@ try:
 
     info_df["height"] = info_df["ht_in_in"].apply(inches_to_ft)
     info_df["hof"]    = info_df["hof"].fillna("").astype(str).str.strip()
-    # Keep only columns we need, keyed by player_id
     info_lookup = info_df.set_index("player_id")[["height", "hof"]].to_dict("index")
     print(f"Loaded {len(info_lookup)} player info rows.")
 except Exception as e:
     info_lookup = {}
     print(f"Error loading info CSV: {e}")
 
-# Draft picks — overall pick number, keyed by player_id
 try:
     draft_df = pd.read_csv(draft_path)
     draft_df.columns = [c.lower() for c in draft_df.columns]
@@ -69,15 +99,13 @@ except Exception as e:
     draft_lookup = {}
     print(f"Error loading draft CSV: {e}")
 
-# Awards lookup — keyed by player_id
-awards_path    = BASE_DIR / "Data" / "Player Award Shares.csv"
-allstar_path   = BASE_DIR / "Data" / "All-Star Selections.csv"
-eosteams_path  = BASE_DIR / "Data" / "End of Season Teams.csv"
+awards_path   = BASE_DIR / "Data" / "Player Award Shares.csv"
+allstar_path  = BASE_DIR / "Data" / "All-Star Selections.csv"
+eosteams_path = BASE_DIR / "Data" / "End of Season Teams.csv"
 
 def build_awards_lookup():
-    awards = {}  # player_id -> dict of award counts
+    awards = {}
 
-    # ── MVP & DPOY wins ──────────────────────────────────────────────────────
     try:
         aw = pd.read_csv(awards_path)
         aw.columns = [c.lower() for c in aw.columns]
@@ -91,7 +119,6 @@ def build_awards_lookup():
     except Exception as e:
         print(f"Error loading awards CSV: {e}")
 
-    # ── All-Star selections ───────────────────────────────────────────────────
     try:
         as_df = pd.read_csv(allstar_path)
         as_df.columns = [c.lower() for c in as_df.columns]
@@ -102,7 +129,6 @@ def build_awards_lookup():
     except Exception as e:
         print(f"Error loading All-Star CSV: {e}")
 
-    # ── End of Season Teams (All-NBA / All-Defensive) ─────────────────────────
     try:
         eos = pd.read_csv(eosteams_path)
         eos.columns = [c.lower() for c in eos.columns]
@@ -112,7 +138,6 @@ def build_awards_lookup():
             alldef = grp[grp["type"].str.contains("All-Defensive", case=False, na=False)]
             if len(allnba): awards[pid]["allnba"] = len(allnba)
             if len(alldef): awards[pid]["alldef"] = len(alldef)
-            # 1st team All-NBA count
             first = allnba[allnba["number_tm"] == 1]
             if len(first): awards[pid]["allnba_first"] = len(first)
         print(f"Loaded EOS team data for {eos['player_id'].nunique()} players.")
@@ -140,8 +165,6 @@ TEAM_TO_CONF = {
     "SAS": "Western", "UTA": "Western",
 }
 
-# Stat map — keys must match the actual (lowercased) CSV column names.
-# Using x3p / x3pa to match the CATEGORIES list in the original code.
 STAT_MAP = {
     "pts_per_game":  "Points Per Game",
     "trb_per_game":  "Rebounds Per Game",
@@ -188,7 +211,74 @@ async def spin_page(request: Request):
     return templates.TemplateResponse(request, "spin.html")
 
 # ---------------------------------------------------------------------------
-# API routes
+# Leaderboard API routes
+# ---------------------------------------------------------------------------
+
+class ScorePayload(BaseModel):
+    name: str
+    category: str   # e.g. "2000-2025_starters_3g"
+    streak: int     # current streak to compare against best
+
+@app.get("/leaderboard")
+async def get_leaderboard(category: str = Query(...)):
+    """Return top 10 entries for a given category, sorted by best_streak desc then wins desc."""
+    category = category.strip()
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT name, wins, best_streak
+            FROM scores
+            WHERE category = ?
+            ORDER BY best_streak DESC, wins DESC
+            LIMIT 10
+            """,
+            (category,),
+        ).fetchall()
+    return JSONResponse([dict(r) for r in rows])
+
+
+@app.post("/leaderboard")
+async def post_leaderboard(payload: ScorePayload):
+    """Upsert a win for (name, category). Increments wins, updates best_streak if higher."""
+    name     = payload.name.strip()[:20]   # cap at 20 chars
+    category = payload.category.strip()
+    streak   = max(0, int(payload.streak))
+
+    if not name or not category:
+        return JSONResponse({"error": "name and category are required"}, status_code=400)
+
+    with get_db() as conn:
+        # Check if row exists
+        existing = conn.execute(
+            "SELECT wins, best_streak FROM scores WHERE name = ? AND category = ?",
+            (name, category),
+        ).fetchone()
+
+        if existing:
+            new_wins   = existing["wins"] + 1
+            new_streak = max(existing["best_streak"], streak)
+            conn.execute(
+                """
+                UPDATE scores
+                SET wins = ?, best_streak = ?, updated_at = strftime('%s','now')
+                WHERE name = ? AND category = ?
+                """,
+                (new_wins, new_streak, name, category),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO scores (name, category, wins, best_streak)
+                VALUES (?, ?, 1, ?)
+                """,
+                (name, category, streak),
+            )
+        conn.commit()
+
+    return JSONResponse({"ok": True})
+
+# ---------------------------------------------------------------------------
+# Existing API routes (unchanged)
 # ---------------------------------------------------------------------------
 
 @app.get("/debug_columns")
@@ -217,20 +307,15 @@ async def random_player(
         if stats_df.empty:
             return JSONResponse({"error": "Database is empty"}, status_code=500)
 
-        # Clean the types param — guard against bracket/quote artifacts from the URL
         clean_types = types.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
         type_list = [t.strip() for t in clean_types.split(",")]
 
-        # Filter by season range
         mask = (stats_df["season"] >= start_season) & (stats_df["season"] <= end_season)
         pool = stats_df[mask]
 
         if pool.empty:
             return JSONResponse({"error": "No players in this year range"}, status_code=404)
 
-        # Filter by difficulty
-        # Starters: 58+ games AND 30+ MPG in 3+ seasons within the range
-        # (uses games played + MPG instead of GS so older players qualify)
         if "starters" in type_list or "all" in type_list:
             qual_rows = pool[(pool["g"] >= 58) & (pool["mp_per_game"] >= 30)]
             qualifier  = qual_rows.groupby("player").size()
@@ -248,10 +333,8 @@ async def random_player(
 
         filtered = pool[diff_mask]
         if filtered.empty:
-            filtered = pool  # fallback: use full pool
+            filtered = pool
 
-        # Pick a random player and return their full career stats
-        # For starters, pick only from qualified names to avoid bench players sneaking in
         if "starters" in type_list and starter_names and not ("bench" in type_list or "endbench" in type_list or "all" in type_list):
             eligible = [p for p in filtered["player"].unique() if p in starter_names]
             random_name = random.choice(eligible) if eligible else random.choice(filtered["player"].unique())
@@ -259,9 +342,6 @@ async def random_player(
             random_name = random.choice(filtered["player"].unique())
         career_raw = stats_df[stats_df["player"] == random_name].copy()
 
-        # ── Normalize traded-player rows ──────────────────────────────────────
-        # Replace XTM rows with the actual individual team rows for that season,
-        # ordered so the team matching the prior or next season appears last (bottom).
         def normalize_career(df):
             rows = []
             seasons = sorted(df["season"].unique())
@@ -269,12 +349,10 @@ async def random_player(
                 szn_rows = df[df["season"] == szn]
                 multi = szn_rows["team"].str.match(r"\d+TM", na=False)
                 if multi.any():
-                    # Get individual team rows only (not the XTM summary)
                     real_rows = szn_rows[~multi].copy()
                     if real_rows.empty:
                         rows.append(szn_rows.iloc[0])
                         continue
-                    # Figure out anchor team: team from next season (or prev if last)
                     anchor = None
                     if i + 1 < len(seasons):
                         next_szn = df[df["season"] == seasons[i + 1]]
@@ -286,7 +364,6 @@ async def random_player(
                         prev_teams = prev_szn[~prev_szn["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
                         if prev_teams:
                             anchor = prev_teams[-1]
-                    # Put anchor team last, others first
                     if anchor:
                         anchor_rows = real_rows[real_rows["team"] == anchor]
                         other_rows  = real_rows[real_rows["team"] != anchor]
@@ -305,13 +382,11 @@ async def random_player(
 
         import math
         raw_seasons = career.to_dict(orient="records")
-        # Scrub every value — NaN/Inf are not JSON serializable
         clean_seasons = [
             {k: (None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v)
              for k, v in row.items()}
             for row in raw_seasons
         ]
-        # Look up height, draft pick, and awards via player_id
         player_id = career_raw["player_id"].iloc[0] if "player_id" in career_raw.columns else None
         info   = info_lookup.get(player_id, {})
         pick   = draft_lookup.get(player_id)
@@ -323,12 +398,12 @@ async def random_player(
             "hof":         info.get("hof", ""),
             "draft_pick":  int(pick) if pick is not None else None,
             "awards": {
-                "mvp":         awards.get("nba most valuable player", 0),
-                "dpoy":        awards.get("nba defensive player of the year", 0),
-                "allstar":     awards.get("allstar", 0),
-                "allnba":      awards.get("allnba", 0),
-                "allnba_first":awards.get("allnba_first", 0),
-                "alldef":      awards.get("alldef", 0),
+                "mvp":          awards.get("nba most valuable player", 0),
+                "dpoy":         awards.get("nba defensive player of the year", 0),
+                "allstar":      awards.get("allstar", 0),
+                "allnba":       awards.get("allnba", 0),
+                "allnba_first": awards.get("allnba_first", 0),
+                "alldef":       awards.get("alldef", 0),
             },
             "seasons": clean_seasons,
         })
@@ -350,43 +425,32 @@ async def spin_data():
 
         chosen_stat_key = random.choice(available_stat_keys)
 
-        # For traded players the CSV has multiple rows (one per team + a "TOT" total row).
-        # Keep only the TOT row when a player appears more than once in a season,
-        # otherwise keep their single row. This prevents the same player appearing
-        # twice and ensures stats are season totals, not partial-team splits.
         def dedup_season(df):
             counts = df.groupby("player")["player"].transform("count")
-            # Keep TOT rows for multi-team players, keep all rows for single-team players
             return df[(counts == 1) | (df["team"].str.match(r"\d+TM"))]
 
-        # NBA seasons only (ABA already filtered at load, but be explicit)
         nba_seasons = stats_df[stats_df["lg"] == "NBA"]["season"].unique().tolist()
 
         for _ in range(20):
             chosen_season = random.choice(nba_seasons)
-
             season_df = stats_df[
                 (stats_df["season"] == chosen_season) &
                 (stats_df["lg"] == "NBA") &
                 (stats_df["g"] >= 41) &
                 stats_df[chosen_stat_key].notna()
             ].copy()
-
             season_df = dedup_season(season_df)
-
             if not season_df.empty:
                 break
         else:
             return JSONResponse({"error": "Could not find valid season/stat combination"}, status_code=500)
 
-        # Sort descending and take the true leader
         season_df = season_df.sort_values(by=chosen_stat_key, ascending=False)
         leader_row = season_df.iloc[0]
 
         stat_val = float(leader_row[chosen_stat_key])
         team_abbrev = str(leader_row.get("team", "")).upper()
 
-        # For traded players — find the team with most games played that season
         if re.match(r"\d+TM", team_abbrev):
             player_rows = stats_df[
                 (stats_df["player"] == leader_row["player"]) &
@@ -394,13 +458,10 @@ async def spin_data():
                 (~stats_df["team"].str.match(r"\d+TM", na=False))
             ].copy()
             if not player_rows.empty:
-                # Pick team with most games played
                 team_abbrev = player_rows.sort_values("g", ascending=False).iloc[0]["team"].upper()
 
-        # Final fallback — if still unknown, skip this result and try again
         conf = TEAM_TO_CONF.get(team_abbrev, "")
         if not conf:
-            # Try to find any team for this player that maps to a known conference
             player_teams = stats_df[
                 (stats_df["player"] == leader_row["player"]) &
                 (stats_df["season"] == chosen_season) &
