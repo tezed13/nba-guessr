@@ -228,10 +228,12 @@ async def random_player(
         if pool.empty:
             return JSONResponse({"error": "No players in this year range"}, status_code=404)
 
-        # Filter by difficulty (games started)
-        # Starters: must have started 58+ games in 3+ seasons within the range
+        # Filter by difficulty
+        # Starters: 58+ games AND 30+ MPG in 3+ seasons within the range
+        # (uses games played + MPG instead of GS so older players qualify)
         if "starters" in type_list or "all" in type_list:
-            qualifier = pool[pool["gs"] >= 58].groupby("player").size()
+            qual_rows = pool[(pool["g"] >= 58) & (pool["mp_per_game"] >= 30)]
+            qualifier  = qual_rows.groupby("player").size()
             starter_names = qualifier[qualifier >= 3].index.tolist()
         else:
             starter_names = []
