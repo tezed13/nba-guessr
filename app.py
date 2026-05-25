@@ -60,7 +60,6 @@ except Exception as e:
 try:
     draft_df = pd.read_csv(draft_path)
     draft_df.columns = [c.lower() for c in draft_df.columns]
-    # Keep first (earliest) draft entry per player in case of duplicates
     draft_df = draft_df.dropna(subset=["player_id", "overall_pick"])
     draft_df["overall_pick"] = draft_df["overall_pick"].astype(int)
     draft_lookup = draft_df.groupby("player_id")["overall_pick"].first().to_dict()
@@ -68,6 +67,60 @@ try:
 except Exception as e:
     draft_lookup = {}
     print(f"Error loading draft CSV: {e}")
+
+# Awards lookup — keyed by player_id
+awards_path    = BASE_DIR / "Data" / "Player Award Shares.csv"
+allstar_path   = BASE_DIR / "Data" / "All-Star Selections.csv"
+eosteams_path  = BASE_DIR / "Data" / "End of Season Teams.csv"
+
+def build_awards_lookup():
+    awards = {}  # player_id -> dict of award counts
+
+    # ── MVP & DPOY wins ──────────────────────────────────────────────────────
+    try:
+        aw = pd.read_csv(awards_path)
+        aw.columns = [c.lower() for c in aw.columns]
+        wins = aw[aw["winner"] == True]
+        for pid, grp in wins.groupby("player_id"):
+            if pid not in awards: awards[pid] = {}
+            for award in grp["award"].unique():
+                key = award.lower().strip()
+                awards[pid][key] = int((grp["award"] == award).sum())
+        print(f"Loaded award shares for {len(awards)} players.")
+    except Exception as e:
+        print(f"Error loading awards CSV: {e}")
+
+    # ── All-Star selections ───────────────────────────────────────────────────
+    try:
+        as_df = pd.read_csv(allstar_path)
+        as_df.columns = [c.lower() for c in as_df.columns]
+        for pid, grp in as_df.groupby("player_id"):
+            if pid not in awards: awards[pid] = {}
+            awards[pid]["allstar"] = len(grp)
+        print(f"Loaded All-Star data for {as_df['player_id'].nunique()} players.")
+    except Exception as e:
+        print(f"Error loading All-Star CSV: {e}")
+
+    # ── End of Season Teams (All-NBA / All-Defensive) ─────────────────────────
+    try:
+        eos = pd.read_csv(eosteams_path)
+        eos.columns = [c.lower() for c in eos.columns]
+        for pid, grp in eos.groupby("player_id"):
+            if pid not in awards: awards[pid] = {}
+            allnba = grp[grp["type"].str.contains("All-NBA", case=False, na=False)]
+            alldef = grp[grp["type"].str.contains("All-Defensive", case=False, na=False)]
+            if len(allnba): awards[pid]["allnba"] = len(allnba)
+            if len(alldef): awards[pid]["alldef"] = len(alldef)
+            # 1st team All-NBA count
+            first = allnba[allnba["number_tm"] == 1]
+            if len(first): awards[pid]["allnba_first"] = len(first)
+        print(f"Loaded EOS team data for {eos['player_id'].nunique()} players.")
+    except Exception as e:
+        print(f"Error loading EOS teams CSV: {e}")
+
+    return awards
+
+awards_lookup = build_awards_lookup()
 
 # ---------------------------------------------------------------------------
 # Conference mapping
@@ -243,17 +296,26 @@ async def random_player(
              for k, v in row.items()}
             for row in raw_seasons
         ]
-        # Look up height and draft pick via player_id
+        # Look up height, draft pick, and awards via player_id
         player_id = career_raw["player_id"].iloc[0] if "player_id" in career_raw.columns else None
-        info  = info_lookup.get(player_id, {})
-        pick  = draft_lookup.get(player_id)
+        info   = info_lookup.get(player_id, {})
+        pick   = draft_lookup.get(player_id)
+        awards = awards_lookup.get(player_id, {})
 
         return JSONResponse({
             "player_name": random_name,
             "height":      info.get("height"),
             "hof":         info.get("hof", ""),
             "draft_pick":  int(pick) if pick is not None else None,
-            "seasons":     clean_seasons,
+            "awards": {
+                "mvp":         awards.get("nba most valuable player", 0),
+                "dpoy":        awards.get("nba defensive player of the year", 0),
+                "allstar":     awards.get("allstar", 0),
+                "allnba":      awards.get("allnba", 0),
+                "allnba_first":awards.get("allnba_first", 0),
+                "alldef":      awards.get("alldef", 0),
+            },
+            "seasons": clean_seasons,
         })
 
     except Exception as e:
