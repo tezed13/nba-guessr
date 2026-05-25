@@ -15,10 +15,9 @@
             font-family: 'Inter', sans-serif;
             background: #0d0d0f;
             color: #fff;
-            overflow: hidden; /* prevent outer scroll */
+            overflow: hidden;
         }
 
-        /* Full-height flex layout */
         #app {
             display: flex;
             flex-direction: column;
@@ -28,7 +27,6 @@
             padding: 0 16px;
         }
 
-        /* Top bar — fixed height */
         #topbar {
             flex-shrink: 0;
             display: flex;
@@ -38,19 +36,16 @@
             border-bottom: 1px solid #1c1c1f;
         }
 
-        /* Stats area — scrollable, fills remaining space */
         #statsArea {
             flex: 1;
             overflow-y: auto;
             padding: 12px 0 8px;
-            /* Hide scrollbar but keep functional */
             scrollbar-width: thin;
             scrollbar-color: #27272a transparent;
         }
         #statsArea::-webkit-scrollbar { width: 4px; }
         #statsArea::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
 
-        /* Guess panel — fixed at bottom */
         #guessPanel {
             flex-shrink: 0;
             border-top: 1px solid #1c1c1f;
@@ -58,8 +53,8 @@
             background: #0d0d0f;
         }
 
-        /* Settings drawer */
-        #settingsDrawer {
+        /* ── Shared drawer base ── */
+        .side-drawer {
             position: fixed;
             inset: 0;
             z-index: 50;
@@ -71,11 +66,11 @@
             pointer-events: none;
             transition: opacity 0.25s;
         }
-        #settingsDrawer.open {
+        .side-drawer.open {
             opacity: 1;
             pointer-events: all;
         }
-        #drawerContent {
+        .drawer-content {
             width: 100%;
             max-width: 680px;
             margin: 0 auto;
@@ -85,8 +80,113 @@
             padding: 24px 20px 36px;
             transform: translateY(100%);
             transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+            max-height: 85dvh;
+            overflow-y: auto;
         }
-        #settingsDrawer.open #drawerContent { transform: translateY(0); }
+        .side-drawer.open .drawer-content { transform: translateY(0); }
+
+        /* ── Leaderboard specific ── */
+        #lbDrawer .drawer-content {
+            padding-bottom: 36px;
+        }
+
+        .lb-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding-bottom: 2px;
+        }
+        .lb-tabs::-webkit-scrollbar { display: none; }
+
+        .lb-tab {
+            flex-shrink: 0;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border: 1.5px solid #27272a;
+            background: transparent;
+            color: #52525b;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .lb-tab.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: #fff;
+        }
+        .lb-tab:hover:not(.active) {
+            border-color: #3f3f46;
+            color: #a1a1aa;
+        }
+
+        .lb-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .lb-table thead th {
+            background: #18181b;
+            color: #52525b;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 9px 12px;
+            border-bottom: 1px solid #27272a;
+            text-align: left;
+        }
+        .lb-table thead th:last-child { text-align: right; }
+        .lb-table tbody tr { border-bottom: 1px solid #1c1c1f; }
+        .lb-table tbody tr:last-child { border-bottom: none; }
+        .lb-table tbody td {
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #a1a1aa;
+        }
+        .lb-table tbody td.rank { color: #52525b; font-weight: 700; width: 32px; }
+        .lb-table tbody td.name-cell { color: #e4e4e7; font-weight: 700; }
+        .lb-table tbody td.score-cell { color: #3b82f6; font-weight: 800; text-align: right; font-size: 15px; }
+        .lb-table tbody tr.you-row td { color: #fbbf24; }
+        .lb-table tbody tr.you-row td.score-cell { color: #fbbf24; }
+
+        .rank-gold   { color: #fbbf24 !important; }
+        .rank-silver { color: #a1a1aa !important; }
+        .rank-bronze { color: #b45309 !important; }
+
+        .lb-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #3f3f46;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .lb-meta {
+            font-size: 11px;
+            color: #3f3f46;
+            font-weight: 600;
+            margin-bottom: 14px;
+            padding: 8px 12px;
+            background: #18181b;
+            border-radius: 8px;
+            border: 1px solid #1c1c1f;
+        }
+
+        /* Name entry modal (inside leaderboard drawer, shown after win) */
+        #nameEntrySection {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        #nameEntrySection.visible { display: block; }
 
         /* Stat table */
         .stat-table { width: 100%; border-collapse: collapse; }
@@ -111,7 +211,6 @@
         .stat-table tbody td.yr   { color: #52525b; font-weight: 600; }
         .stat-table tbody td.tm   { color: #e4e4e7; font-weight: 600; }
 
-        /* Input */
         .dark-input {
             background: #18181b;
             border: 1.5px solid #27272a;
@@ -127,10 +226,8 @@
         }
         .dark-input:focus { border-color: #3b82f6; }
         .dark-input::placeholder { color: #3f3f46; }
-
         select.dark-input { cursor: pointer; }
 
-        /* Suggestions */
         #suggestions {
             position: absolute;
             z-index: 30;
@@ -154,7 +251,6 @@
         .sug-item:last-child { border-bottom: none; }
         .sug-item:hover { background: #3b82f6; color: #fff; }
 
-        /* Buttons */
         .btn { border: none; border-radius: 10px; font-family: inherit; font-weight: 800; font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; padding: 12px 16px; transition: background 0.15s, transform 0.1s; }
         .btn:active { transform: scale(0.97); }
         .btn-blue   { background: #3b82f6; color: #fff; }
@@ -164,7 +260,6 @@
         .btn-icon   { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 16px; line-height: 1; }
         .btn-icon:hover { background: #27272a; }
 
-        /* Guess attempt dots */
         .attempt-dot {
             width: 10px; height: 10px; border-radius: 50%;
             border: 1.5px solid #3f3f46;
@@ -174,24 +269,28 @@
         .attempt-dot.used-wrong { background: #f87171; border-color: #f87171; }
         .attempt-dot.used-right { background: #4ade80; border-color: #4ade80; }
 
-        /* Result banner */
         .banner { border-radius: 10px; padding: 12px 16px; font-weight: 800; font-size: 14px; text-align: center; }
         .banner-ok  { background: #052e16; border: 1px solid #166534; color: #4ade80; }
         .banner-err { background: #450a0a; border: 1px solid #991b1b; color: #f87171; }
         .banner-hint { background: #1c1917; border: 1px solid #44403c; color: #d6d3d1; }
 
-        /* Streak */
         .streak-pill { background: #18181b; border: 1px solid #27272a; border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 700; color: #52525b; display: flex; align-items: center; gap: 6px; }
         .streak-pill span { color: #3b82f6; font-size: 16px; font-weight: 900; }
 
-        /* Settings label */
         .setting-label { font-size: 11px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
 
-        /* Player name in card header */
         #playerNameDisplay { font-size: 13px; font-weight: 800; letter-spacing: 0.05em; color: #3f3f46; }
 
         @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.8} }
         .skeleton { animation: pulse 1.2s ease-in-out infinite; background: #18181b; border-radius: 4px; display: inline-block; width: 100%; height: 14px; }
+
+        /* Score pulse on new entry */
+        @keyframes scorePop {
+            0%   { transform: scale(1); }
+            40%  { transform: scale(1.18); color: #4ade80; }
+            100% { transform: scale(1); }
+        }
+        .score-pop { animation: scorePop 0.4s ease; }
     </style>
 </head>
 <body>
@@ -199,9 +298,11 @@
     <input type="hidden" id="endSeason" value="{{ end_season }}">
     <input type="hidden" id="types" value="{{ types }}">
 
-    <!-- Settings Drawer -->
-    <div id="settingsDrawer">
-        <div id="drawerContent">
+    <!-- ══════════════════════════════════════════
+         SETTINGS DRAWER
+    ══════════════════════════════════════════ -->
+    <div id="settingsDrawer" class="side-drawer">
+        <div class="drawer-content">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
                 <p style="font-size:16px;font-weight:800;letter-spacing:0.03em">Game Settings</p>
                 <button class="btn-icon" onclick="closeSettings()">✕</button>
@@ -244,6 +345,53 @@
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════
+         LEADERBOARD DRAWER
+    ══════════════════════════════════════════ -->
+    <div id="lbDrawer" class="side-drawer">
+        <div class="drawer-content">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <p style="font-size:16px;font-weight:800;letter-spacing:0.03em">🏆 Leaderboard</p>
+                <button class="btn-icon" onclick="closeLB()">✕</button>
+            </div>
+
+            <!-- Name entry (appears after a win if no name set) -->
+            <div id="nameEntrySection">
+                <p class="setting-label" style="margin-bottom:8px">Enter your name to save your score</p>
+                <div style="display:flex;gap:8px">
+                    <input type="text" id="lbNameInput" class="dark-input" placeholder="Your name..." maxlength="20" style="flex:1;font-size:13px;padding:10px 12px">
+                    <button class="btn btn-blue" style="padding:10px 16px;font-size:13px" onclick="saveScore()">Save</button>
+                </div>
+            </div>
+
+            <!-- Category tabs -->
+            <div class="lb-tabs" id="lbTabs"></div>
+
+            <!-- Context pill -->
+            <div class="lb-meta" id="lbMeta"></div>
+
+            <!-- Table -->
+            <div style="border-radius:12px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
+                <table class="lb-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Player</th>
+                            <th>Wins</th>
+                            <th style="text-align:right">Best Streak</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lbBody"></tbody>
+                </table>
+            </div>
+
+            <button class="btn btn-dim" style="width:100%;margin-top:14px;font-size:12px" onclick="if(confirm('Clear all leaderboard data?')){clearLeaderboard()}">Reset Leaderboard</button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         MAIN APP
+    ══════════════════════════════════════════ -->
     <div id="app">
         <!-- Top bar -->
         <div id="topbar">
@@ -254,22 +402,22 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px">
                 <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
+                <button class="btn-icon" onclick="openLB()" title="Leaderboard">🏆</button>
                 <button class="btn-icon" onclick="openSettings()" title="Settings">⚙️</button>
             </div>
         </div>
 
-        <!-- Stats area (scrollable) -->
+        <!-- Stats area -->
         <div id="statsArea">
             <div style="padding:8px 4px 6px;display:flex;align-items:center;justify-content:space-between">
                 <p style="font-size:10px;font-weight:700;color:#3f3f46;text-transform:uppercase;letter-spacing:0.08em">Career Stats</p>
                 <p id="playerNameDisplay">— — —</p>
             </div>
-            <!-- Sticky hints bar -->
-        <div style="position:sticky;top:0;z-index:40;background:#0d0d0f;padding:8px 0 6px;border-bottom:1px solid #1c1c1f;margin-bottom:8px">
-            <div id="hintBadges" style="display:flex;gap:6px;flex-wrap:wrap;min-height:26px"></div>
-        </div>
+            <div style="position:sticky;top:0;z-index:40;background:#0d0d0f;padding:8px 0 6px;border-bottom:1px solid #1c1c1f;margin-bottom:8px">
+                <div id="hintBadges" style="display:flex;gap:6px;flex-wrap:wrap;min-height:26px"></div>
+            </div>
 
-        <div style="border-radius:14px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
+            <div style="border-radius:14px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
                 <div style="overflow-x:auto">
                     <table class="stat-table">
                         <thead>
@@ -285,21 +433,14 @@
             </div>
         </div>
 
-        <!-- Guess panel (sticky bottom) -->
+        <!-- Guess panel -->
         <div id="guessPanel">
-            <!-- Attempt dots -->
             <div id="attemptDots" style="display:flex;gap:6px;justify-content:center;margin-bottom:10px"></div>
-
-            <!-- Banner -->
             <div id="resultBanner" class="banner" style="display:none;margin-bottom:10px"></div>
-
-            <!-- Input -->
             <div style="position:relative;margin-bottom:10px">
                 <input type="text" id="guessInput" class="dark-input" placeholder="Search player name...">
                 <div id="suggestions" class="hidden"></div>
             </div>
-
-            <!-- Buttons -->
             <div style="display:flex;gap:10px">
                 <button id="submitBtn" class="btn btn-blue" style="flex:1">Submit Guess</button>
                 <button id="nextBtn" class="btn btn-dim" style="flex:1;display:none">Next Player →</button>
@@ -308,299 +449,485 @@
     </div>
 
     <script>
-        // ── State ──────────────────────────────────────────────
-        let currentPlayerName = "";
-        let streak = parseInt(localStorage.getItem('guessr_cur') || '0');
-        let bestStreak = parseInt(localStorage.getItem('guessr_best') || '0');
-        let allPlayers = [];
-        let guessesUsed = 0;
-        let roundOver = false;
+    // ══════════════════════════════════════════════════════════════
+    // LEADERBOARD ENGINE
+    // ══════════════════════════════════════════════════════════════
 
-        // Read max_guesses from URL, fall back to 1
-        const urlParams = new URLSearchParams(window.location.search);
-        let maxGuesses = parseInt(urlParams.get('max_guesses') || '1');
+    // Storage key: 'nba_lb_v1'
+    // Structure: { [categoryKey]: [ {name, wins, bestStreak, lastPlayed}, ... ] }
+    // Category key format: "{startYear}-{endYear}_{types}_{maxGuesses}g"
 
-        // Read season/types from hidden inputs
-        let activeSeason  = { start: parseInt(document.getElementById('startSeason').value),
-                               end:   parseInt(document.getElementById('endSeason').value) };
-        let activeTypes   = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
+    const LB_KEY = 'nba_lb_v1';
+    const LB_NAME_KEY = 'nba_lb_name';
+    const MAX_LB_ENTRIES = 10;
 
-        // Restore streak display on load
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('streakVal').textContent = streak;
+    function lbCategoryKey(start, end, types, maxG) {
+        return `${start}-${end}_${types}_${maxG}g`;
+    }
+
+    function lbCategoryLabel(key) {
+        // "2000-2025_starters_3g" → human readable
+        const m = key.match(/^(\d+)-(\d+)_(.+)_(\d+)g$/);
+        if (!m) return key;
+        const [, start, end, types, maxG] = m;
+        const typeLabel = {
+            'starters': 'Starters',
+            'bench': 'Bench',
+            'endbench': 'End of Bench',
+            'starters,bench': 'Starters + Bench',
+            'starters,bench,endbench': 'All Players'
+        }[types] || types;
+        return `${start}–${end} · ${typeLabel} · ${maxG} guess${maxG==='1'?'':'es'}`;
+    }
+
+    function lbShortLabel(key) {
+        const m = key.match(/^(\d+)-(\d+)_(.+)_(\d+)g$/);
+        if (!m) return key;
+        const [, start, end, types, maxG] = m;
+        const typeShort = {
+            'starters': 'Starters',
+            'bench': 'Bench',
+            'endbench': 'Deep Bench',
+            'starters,bench': 'S+B',
+            'starters,bench,endbench': 'All'
+        }[types] || types;
+        return `${start}–${end} · ${typeShort} · ${maxG}G`;
+    }
+
+    function loadLB() {
+        try { return JSON.parse(localStorage.getItem(LB_KEY) || '{}'); } catch { return {}; }
+    }
+
+    function saveLB(data) {
+        localStorage.setItem(LB_KEY, JSON.stringify(data));
+    }
+
+    function recordWin(catKey, name, currentStreak) {
+        const lb = loadLB();
+        if (!lb[catKey]) lb[catKey] = [];
+        const existing = lb[catKey].find(e => e.name.toLowerCase() === name.toLowerCase());
+        if (existing) {
+            existing.wins++;
+            if (currentStreak > existing.bestStreak) existing.bestStreak = currentStreak;
+            existing.lastPlayed = Date.now();
+        } else {
+            lb[catKey].push({ name, wins: 1, bestStreak: currentStreak, lastPlayed: Date.now() });
+        }
+        // Sort: primary = bestStreak desc, secondary = wins desc
+        lb[catKey].sort((a, b) => b.bestStreak - a.bestStreak || b.wins - a.wins);
+        // Trim to top MAX_LB_ENTRIES
+        lb[catKey] = lb[catKey].slice(0, MAX_LB_ENTRIES);
+        saveLB(lb);
+    }
+
+    function renderLB(activeKey) {
+        const lb = loadLB();
+        const allKeys = Object.keys(lb);
+
+        // Build tabs — always include current category even if empty
+        const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+        const tabKeys = [...new Set([currentKey, ...allKeys])];
+
+        const tabsEl = document.getElementById('lbTabs');
+        tabsEl.innerHTML = tabKeys.map(k => {
+            const isCurrent = k === currentKey;
+            const isActive  = k === activeKey;
+            return `<button class="lb-tab${isActive ? ' active' : ''}" onclick="renderLB('${k}')">${lbShortLabel(k)}${isCurrent ? ' ●' : ''}</button>`;
+        }).join('');
+
+        // Meta info
+        document.getElementById('lbMeta').textContent = lbCategoryLabel(activeKey);
+
+        // Table
+        const entries = lb[activeKey] || [];
+        const tbody = document.getElementById('lbBody');
+        const playerName = localStorage.getItem(LB_NAME_KEY) || '';
+
+        if (!entries.length) {
+            tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty">No scores yet for this category.<br>Win a round to appear here!</div></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = entries.map((e, i) => {
+            const isYou = playerName && e.name.toLowerCase() === playerName.toLowerCase();
+            const rankClass = i === 0 ? 'rank-gold' : i === 1 ? 'rank-silver' : i === 2 ? 'rank-bronze' : '';
+            const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+            return `<tr class="${isYou ? 'you-row' : ''}">
+                <td class="rank ${rankClass}">${rankEmoji}</td>
+                <td class="name-cell">${escHtml(e.name)}${isYou ? ' <span style="font-size:10px;color:#52525b">(you)</span>' : ''}</td>
+                <td>${e.wins}W</td>
+                <td class="score-cell">${e.bestStreak} 🔥</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Pending score (set after a win, before name entered) ──
+    let pendingScoreKey = null;
+    let pendingStreak   = 0;
+
+    function openLB(showNameEntry = false) {
+        const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+        renderLB(currentKey);
+
+        const nameSection = document.getElementById('nameEntrySection');
+        const savedName = localStorage.getItem(LB_NAME_KEY) || '';
+
+        if (showNameEntry && pendingScoreKey) {
+            if (savedName) {
+                // Auto-save with existing name, no prompt needed
+                recordWin(pendingScoreKey, savedName, pendingStreak);
+                pendingScoreKey = null;
+                renderLB(currentKey);
+                nameSection.classList.remove('visible');
+            } else {
+                nameSection.classList.add('visible');
+                document.getElementById('lbNameInput').value = '';
+                setTimeout(() => document.getElementById('lbNameInput').focus(), 350);
+            }
+        } else {
+            nameSection.classList.remove('visible');
+        }
+
+        document.getElementById('lbDrawer').classList.add('open');
+    }
+
+    function closeLB() {
+        document.getElementById('lbDrawer').classList.remove('open');
+    }
+
+    function saveScore() {
+        const rawName = document.getElementById('lbNameInput').value.trim();
+        if (!rawName) {
+            document.getElementById('lbNameInput').style.borderColor = '#ef4444';
+            setTimeout(() => document.getElementById('lbNameInput').style.borderColor = '', 800);
+            return;
+        }
+        localStorage.setItem(LB_NAME_KEY, rawName);
+        if (pendingScoreKey) {
+            recordWin(pendingScoreKey, rawName, pendingStreak);
+            pendingScoreKey = null;
+        }
+        document.getElementById('nameEntrySection').classList.remove('visible');
+        const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+        renderLB(currentKey);
+    }
+
+    function clearLeaderboard() {
+        localStorage.removeItem(LB_KEY);
+        const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+        renderLB(currentKey);
+    }
+
+    // Close LB on backdrop click
+    document.getElementById('lbDrawer').addEventListener('click', e => {
+        if (e.target === document.getElementById('lbDrawer')) closeLB();
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // GAME STATE
+    // ══════════════════════════════════════════════════════════════
+
+    let currentPlayerName = "";
+    let streak     = parseInt(localStorage.getItem('guessr_cur')  || '0');
+    let bestStreak = parseInt(localStorage.getItem('guessr_best') || '0');
+    let allPlayers = [];
+    let guessesUsed = 0;
+    let roundOver   = false;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    let maxGuesses = parseInt(urlParams.get('max_guesses') || '1');
+
+    let activeSeason = {
+        start: parseInt(document.getElementById('startSeason').value),
+        end:   parseInt(document.getElementById('endSeason').value)
+    };
+    let activeTypes = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('streakVal').textContent = streak;
+    });
+
+    fetch('/all_players').then(r => r.json()).then(d => allPlayers = d);
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function fmt(v) { return (v !== null && v !== undefined) ? v : '—'; }
+    function fmtPct(v) {
+        if (v === null || v === undefined) return '—';
+        return (parseFloat(v) * 100).toFixed(1) + '%';
+    }
+
+    function buildDots() {
+        const el = document.getElementById('attemptDots');
+        el.innerHTML = Array.from({length: maxGuesses}, (_, i) =>
+            `<span class="attempt-dot" id="dot-${i}"></span>`).join('');
+    }
+
+    function markDot(index, correct) {
+        const d = document.getElementById(`dot-${index}`);
+        if (d) d.classList.add(correct ? 'used-right' : 'used-wrong');
+    }
+
+    function showBanner(text, type) {
+        const b = document.getElementById('resultBanner');
+        b.textContent = text;
+        b.className = `banner banner-${type}`;
+        b.style.display = 'block';
+    }
+
+    function hideBanner() {
+        document.getElementById('resultBanner').style.display = 'none';
+    }
+
+    // ── Settings drawer ──────────────────────────────────────────
+    let pendingGuessLimit = maxGuesses;
+
+    function openSettings() {
+        document.getElementById('setStart').value = activeSeason.start;
+        document.getElementById('setEnd').value   = activeSeason.end;
+        document.getElementById('setTypes').value = activeTypes;
+        pendingGuessLimit = maxGuesses;
+        updateGuessLimitBtns();
+        document.getElementById('settingsDrawer').classList.add('open');
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsDrawer').classList.remove('open');
+    }
+
+    function selectGuessLimit(n) {
+        pendingGuessLimit = n;
+        updateGuessLimitBtns();
+    }
+
+    function updateGuessLimitBtns() {
+        document.querySelectorAll('.guess-limit-btn').forEach(btn => {
+            const active = parseInt(btn.dataset.val) === pendingGuessLimit;
+            btn.className = `guess-limit-btn btn ${active ? 'btn-blue' : 'btn-dim'}`;
+            btn.style.flex = '1';
         });
+    }
 
-        fetch('/all_players').then(r => r.json()).then(d => allPlayers = d);
+    function applySettings() {
+        const s = parseInt(document.getElementById('setStart').value) || activeSeason.start;
+        const e = parseInt(document.getElementById('setEnd').value)   || activeSeason.end;
+        if (s > e) { alert('Start year must be before end year.'); return; }
+        activeSeason = { start: s, end: e };
+        activeTypes  = document.getElementById('setTypes').value;
+        maxGuesses   = pendingGuessLimit;
+        document.getElementById('rangeLabel').textContent = `${s} – ${e}`;
+        closeSettings();
+        loadPlayer();
+    }
 
-        // ── Helpers ────────────────────────────────────────────
-        function fmt(v) { return (v !== null && v !== undefined) ? v : '—'; }
-        function fmtPct(v) {
-            if (v === null || v === undefined) return '—';
-            return (parseFloat(v) * 100).toFixed(1) + '%';
-        }
+    document.getElementById('settingsDrawer').addEventListener('click', e => {
+        if (e.target === document.getElementById('settingsDrawer')) closeSettings();
+    });
 
-        function buildDots() {
-            const el = document.getElementById('attemptDots');
-            el.innerHTML = Array.from({length: maxGuesses}, (_, i) =>
-                `<span class="attempt-dot" id="dot-${i}"></span>`).join('');
-        }
+    // ── Reset UI ─────────────────────────────────────────────────
+    function resetUI() {
+        guessesUsed = 0;
+        roundOver   = false;
+        currentPlayerName = "";
 
-        function markDot(index, correct) {
-            const d = document.getElementById(`dot-${index}`);
-            if (d) d.classList.add(correct ? 'used-right' : 'used-wrong');
-        }
+        document.getElementById('playerNameDisplay').textContent = '— — —';
+        document.getElementById('playerNameDisplay').style.color = '#3f3f46';
+        document.getElementById('hintBadges').innerHTML = '';
+        document.getElementById('guessInput').value = '';
+        document.getElementById('suggestions').classList.add('hidden');
+        hideBanner();
 
-        function showBanner(text, type) {
-            const b = document.getElementById('resultBanner');
-            b.textContent = text;
-            b.className = `banner banner-${type}`;
-            b.style.display = 'block';
-        }
+        document.getElementById('submitBtn').style.display = 'block';
+        document.getElementById('nextBtn').style.display   = 'none';
 
-        function hideBanner() {
-            document.getElementById('resultBanner').style.display = 'none';
-        }
+        buildDots();
+    }
 
-        // ── Settings drawer ────────────────────────────────────
-        let pendingGuessLimit = maxGuesses;
+    // ── Load player ──────────────────────────────────────────────
+    async function loadPlayer() {
+        resetUI();
+        const tbody = document.getElementById('seasonsBody');
+        tbody.innerHTML = Array(4).fill(
+            `<tr>${Array(8).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
+        ).join('');
 
-        function openSettings() {
-            document.getElementById('setStart').value  = activeSeason.start;
-            document.getElementById('setEnd').value    = activeSeason.end;
-            document.getElementById('setTypes').value  = activeTypes;
-            pendingGuessLimit = maxGuesses;
-            updateGuessLimitBtns();
-            document.getElementById('settingsDrawer').classList.add('open');
-        }
+        try {
+            const res = await fetch(
+                `/random_player?start_season=${activeSeason.start}&end_season=${activeSeason.end}&types=${activeTypes}`
+            );
+            if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
+            const data = await res.json();
+            currentPlayerName = data.player_name;
 
-        function closeSettings() {
-            document.getElementById('settingsDrawer').classList.remove('open');
-        }
+            const badges = document.getElementById('hintBadges');
+            badges.innerHTML = '';
+            const bs  = 'display:inline-flex;align-items:center;gap:4px;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;color:#71717a';
+            const bsG = bs + ';border-color:#166534;color:#4ade80';
+            const bsY = bs + ';border-color:#854d0e;color:#fbbf24';
+            const bsB = bs + ';border-color:#1e3a5f;color:#60a5fa';
 
-        function selectGuessLimit(n) {
-            pendingGuessLimit = n;
-            updateGuessLimitBtns();
-        }
+            if (data.height) badges.innerHTML += `<span style="${bs}">📏 ${data.height}</span>`;
+            if (data.draft_pick) badges.innerHTML += `<span style="${bs}">🏀 Pick #${data.draft_pick}</span>`;
+            else                 badges.innerHTML += `<span style="${bs}">🏀 Undrafted</span>`;
 
-        function updateGuessLimitBtns() {
-            document.querySelectorAll('.guess-limit-btn').forEach(btn => {
-                const active = parseInt(btn.dataset.val) === pendingGuessLimit;
-                btn.className = `guess-limit-btn btn ${active ? 'btn-blue' : 'btn-dim'}`;
-                btn.style.flex = '1';
+            if (data.hof === '1' || data.hof?.toLowerCase().startsWith('hof'))
+                badges.innerHTML += `<span style="${bsY}">🏆 HOF</span>`;
+
+            const aw = data.awards || {};
+            if (aw.mvp)     badges.innerHTML += `<span style="${bsY}">👑 ${aw.mvp}× MVP</span>`;
+            if (aw.dpoy)    badges.innerHTML += `<span style="${bsG}">🛡️ ${aw.dpoy}× DPOY</span>`;
+            if (aw.allstar) badges.innerHTML += `<span style="${bsB}">⭐ ${aw.allstar}× All-Star</span>`;
+            if (aw.allnba)  badges.innerHTML += `<span style="${bsB}">🏅 ${aw.allnba}× All-NBA${aw.allnba_first ? ' (' + aw.allnba_first + '× 1st)' : ''}</span>`;
+            if (aw.alldef)  badges.innerHTML += `<span style="${bsG}">🔒 ${aw.alldef}× All-Def</span>`;
+
+            tbody.innerHTML = '';
+            data.seasons.forEach(s => {
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr>
+                        <td class="yr">${fmt(s.season)}</td>
+                        <td class="tm">${fmt(s.team)}</td>
+                        <td>${fmt(s.g)}</td>
+                        <td>${fmt(s.gs)}</td>
+                        <td>${fmt(s.mp_per_game)}</td>
+                        <td class="pts">${fmt(s.pts_per_game)}</td>
+                        <td>${fmt(s.trb_per_game)}</td>
+                        <td>${fmt(s.ast_per_game)}</td>
+                        <td>${fmt(s.blk_per_game)}</td>
+                        <td>${fmt(s.stl_per_game)}</td>
+                        <td>${fmt(s.tov_per_game)}</td>
+                        <td>${fmt(s.x3pa_per_game)}</td>
+                        <td>${fmtPct(s.x3p_percent)}</td>
+                    </tr>`);
             });
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="13" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
         }
+    }
 
-        function applySettings() {
-            const s = parseInt(document.getElementById('setStart').value) || activeSeason.start;
-            const e = parseInt(document.getElementById('setEnd').value)   || activeSeason.end;
-            if (s > e) { alert('Start year must be before end year.'); return; }
-            activeSeason = { start: s, end: e };
-            activeTypes  = document.getElementById('setTypes').value;
-            maxGuesses   = pendingGuessLimit;
-            document.getElementById('rangeLabel').textContent = `${s} – ${e}`;
-            closeSettings();
-            loadPlayer();
+    // ── Submit guess ─────────────────────────────────────────────
+    document.getElementById('submitBtn').addEventListener('click', () => {
+        if (roundOver || !currentPlayerName) return;
+        const guess = document.getElementById('guessInput').value.trim();
+        const isValidPlayer = allPlayers.some(p => norm(p) === norm(guess));
+        if (!isValidPlayer) {
+            const inp = document.getElementById('guessInput');
+            inp.style.borderColor = '#ef4444';
+            setTimeout(() => inp.style.borderColor = '', 800);
+            return;
         }
+        const correct = guess.toLowerCase() === currentPlayerName.toLowerCase();
 
-        // Close drawer on backdrop click
-        document.getElementById('settingsDrawer').addEventListener('click', e => {
-            if (e.target === document.getElementById('settingsDrawer')) closeSettings();
-        });
+        markDot(guessesUsed, correct);
+        guessesUsed++;
 
-        // ── Reset UI ───────────────────────────────────────────
-        function resetUI() {
-            guessesUsed = 0;
-            roundOver   = false;
-            currentPlayerName = "";
-
-            document.getElementById('playerNameDisplay').textContent = '— — —';
-            document.getElementById('playerNameDisplay').style.color = '#3f3f46';
-            document.getElementById('hintBadges').innerHTML = '';
-            document.getElementById('guessInput').value = '';
-            document.getElementById('suggestions').classList.add('hidden');
-            hideBanner();
-
-            document.getElementById('submitBtn').style.display = 'block';
-            document.getElementById('nextBtn').style.display   = 'none';
-
-            buildDots();
-        }
-
-        // ── Load player ────────────────────────────────────────
-        async function loadPlayer() {
-            resetUI();
-            const tbody = document.getElementById('seasonsBody');
-            tbody.innerHTML = Array(4).fill(
-                `<tr>${Array(8).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
-            ).join('');
-
-            try {
-                const res = await fetch(
-                    `/random_player?start_season=${activeSeason.start}&end_season=${activeSeason.end}&types=${activeTypes}`
-                );
-                if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
-                const data = await res.json();
-                currentPlayerName = data.player_name;
-
-                // Populate hint badges
-                const badges = document.getElementById('hintBadges');
-                badges.innerHTML = '';
-                const bs  = 'display:inline-flex;align-items:center;gap:4px;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;color:#71717a';
-                const bsG = bs + ';border-color:#166534;color:#4ade80';   // green
-                const bsY = bs + ';border-color:#854d0e;color:#fbbf24';   // gold
-                const bsB = bs + ';border-color:#1e3a5f;color:#60a5fa';   // blue
-
-                // Height
-                if (data.height) badges.innerHTML += `<span style="${bs}">📏 ${data.height}</span>`;
-
-                // Draft pick
-                if (data.draft_pick) badges.innerHTML += `<span style="${bs}">🏀 Pick #${data.draft_pick}</span>`;
-                else                 badges.innerHTML += `<span style="${bs}">🏀 Undrafted</span>`;
-
-                // HOF
-                if (data.hof === '1' || data.hof?.toLowerCase().startsWith('hof'))
-                    badges.innerHTML += `<span style="${bsY}">🏆 HOF</span>`;
-
-                // Awards
-                const aw = data.awards || {};
-                if (aw.mvp)      badges.innerHTML += `<span style="${bsY}">👑 ${aw.mvp}× MVP</span>`;
-                if (aw.dpoy)     badges.innerHTML += `<span style="${bsG}">🛡️ ${aw.dpoy}× DPOY</span>`;
-                if (aw.allstar)  badges.innerHTML += `<span style="${bsB}">⭐ ${aw.allstar}× All-Star</span>`;
-                if (aw.allnba)   badges.innerHTML += `<span style="${bsB}">🏅 ${aw.allnba}× All-NBA${aw.allnba_first ? ' (' + aw.allnba_first + '× 1st)' : ''}</span>`;
-                if (aw.alldef)   badges.innerHTML += `<span style="${bsG}">🔒 ${aw.alldef}× All-Def</span>`;
-
-                tbody.innerHTML = '';
-                data.seasons.forEach(s => {
-                    tbody.insertAdjacentHTML('beforeend', `
-                        <tr>
-                            <td class="yr">${fmt(s.season)}</td>
-                            <td class="tm">${fmt(s.team)}</td>
-                            <td>${fmt(s.g)}</td>
-                            <td>${fmt(s.gs)}</td>
-                            <td>${fmt(s.mp_per_game)}</td>
-                            <td class="pts">${fmt(s.pts_per_game)}</td>
-                            <td>${fmt(s.trb_per_game)}</td>
-                            <td>${fmt(s.ast_per_game)}</td>
-                            <td>${fmt(s.blk_per_game)}</td>
-                            <td>${fmt(s.stl_per_game)}</td>
-                            <td>${fmt(s.tov_per_game)}</td>
-                            <td>${fmt(s.x3pa_per_game)}</td>
-                            <td>${fmtPct(s.x3p_percent)}</td>
-                        </tr>`);
-                });
-            } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="13" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
+        if (correct) {
+            streak++;
+            if (streak > bestStreak) {
+                bestStreak = streak;
+                localStorage.setItem('guessr_best', bestStreak);
             }
-        }
+            localStorage.setItem('guessr_cur', streak);
 
-        // ── Submit guess ───────────────────────────────────────
-        document.getElementById('submitBtn').addEventListener('click', () => {
-            if (roundOver || !currentPlayerName) return;
-            const guess = document.getElementById('guessInput').value.trim();
-            const isValidPlayer = allPlayers.some(p => norm(p) === norm(guess));
-            if (!isValidPlayer) {
-                const inp = document.getElementById('guessInput');
-                inp.style.borderColor = '#ef4444';
-                setTimeout(() => inp.style.borderColor = '', 800);
-                return;
-            }
-            const correct = guess.toLowerCase() === currentPlayerName.toLowerCase();
+            const streakEl = document.getElementById('streakVal');
+            streakEl.textContent = streak;
+            streakEl.classList.remove('score-pop');
+            void streakEl.offsetWidth; // reflow
+            streakEl.classList.add('score-pop');
 
-            markDot(guessesUsed, correct);
-            guessesUsed++;
+            document.getElementById('playerNameDisplay').textContent = currentPlayerName;
+            document.getElementById('playerNameDisplay').style.color = '#4ade80';
+            showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`, 'ok');
 
-            if (correct) {
-                streak++;
-                if (streak > bestStreak) {
-                    bestStreak = streak;
-                    localStorage.setItem('guessr_best', bestStreak);
-                }
-                localStorage.setItem('guessr_cur', streak);
+            // Queue leaderboard score
+            const catKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+            pendingScoreKey = catKey;
+            pendingStreak   = streak;
+
+            endRound(true);
+        } else {
+            const guessesLeft = maxGuesses - guessesUsed;
+            if (guessesLeft > 0) {
+                showBanner(`✗ Not ${guess || '?'} — ${guessesLeft} guess${guessesLeft > 1 ? 'es' : ''} left`, 'hint');
+                document.getElementById('guessInput').value = '';
+            } else {
+                streak = 0;
+                localStorage.setItem('guessr_cur', 0);
                 document.getElementById('streakVal').textContent = streak;
                 document.getElementById('playerNameDisplay').textContent = currentPlayerName;
-                document.getElementById('playerNameDisplay').style.color = '#4ade80';
-                showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`, 'ok');
-                endRound();
-            } else {
-                const guessesLeft = maxGuesses - guessesUsed;
-                if (guessesLeft > 0) {
-                    // More guesses remaining
-                    showBanner(`✗ Not ${guess || '?'} — ${guessesLeft} guess${guessesLeft > 1 ? 'es' : ''} left`, 'hint');
-                    document.getElementById('guessInput').value = '';
-                } else {
-                    // Out of guesses
-                    streak = 0;
-                    localStorage.setItem('guessr_cur', 0);
-                    document.getElementById('streakVal').textContent = streak;
-                    document.getElementById('playerNameDisplay').textContent = currentPlayerName;
-                    document.getElementById('playerNameDisplay').style.color = '#f87171';
-                    showBanner(`✗ It was ${currentPlayerName} — Best: ${bestStreak}`, 'err');
-                    endRound();
-                }
+                document.getElementById('playerNameDisplay').style.color = '#f87171';
+                showBanner(`✗ It was ${currentPlayerName} — Best: ${bestStreak}`, 'err');
+                endRound(false);
             }
+        }
+    });
+
+    function endRound(won) {
+        roundOver = true;
+        document.getElementById('submitBtn').style.display = 'none';
+        document.getElementById('nextBtn').style.display   = 'block';
+        document.getElementById('guessInput').value = '';
+        document.getElementById('suggestions').classList.add('hidden');
+
+        // Auto-open leaderboard on win to let player save score
+        if (won) {
+            setTimeout(() => openLB(true), 600);
+        }
+    }
+
+    // ── Autocomplete ─────────────────────────────────────────────
+    const input = document.getElementById('guessInput');
+    const suggs = document.getElementById('suggestions');
+
+    function norm(s) {
+        return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+
+    function matchPlayers(players, val) {
+        const q = norm(val.trim());
+        if (q.length < 2) return [];
+        const lastNameMatches  = [];
+        const firstNameMatches = [];
+        const fullNameMatches  = [];
+        players.forEach(p => {
+            const np = norm(p);
+            const parts = np.split(' ');
+            const firstName = parts[0] || '';
+            const lastName  = parts.slice(1).join(' ') || '';
+            if (lastName.startsWith(q))                                      lastNameMatches.push(p);
+            else if (firstName.startsWith(q))                                firstNameMatches.push(p);
+            else if (np.startsWith(q))                                       fullNameMatches.push(p);
+            else if (np.replace(/\s+/g,'').includes(q.replace(/\s+/g,''))) fullNameMatches.push(p);
         });
+        return [...lastNameMatches, ...firstNameMatches, ...fullNameMatches];
+    }
 
-        function endRound() {
-            roundOver = true;
-            document.getElementById('submitBtn').style.display = 'none';
-            document.getElementById('nextBtn').style.display   = 'block';
-            document.getElementById('guessInput').value = '';
-            document.getElementById('suggestions').classList.add('hidden');
-        }
+    input.addEventListener('input', () => {
+        const matches = matchPlayers(allPlayers, input.value);
+        if (!matches.length) { suggs.classList.add('hidden'); return; }
+        suggs.innerHTML = matches.map(m => {
+            const safe = m.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + m + '</div>';
+        }).join('');
+        suggs.classList.remove('hidden');
+    });
 
-        // ── Autocomplete ───────────────────────────────────────────────
-        const input = document.getElementById('guessInput');
-        const suggs = document.getElementById('suggestions');
+    function selectName(name) {
+        input.value = name;
+        suggs.classList.add('hidden');
+    }
 
-        // Strips diacritics so "vuc" matches "Vučević" etc.
-        function norm(s) {
-            return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        }
-
-        function matchPlayers(players, val) {
-            const q = norm(val.trim());
-            if (q.length < 2) return [];
-            const lastNameMatches  = [];
-            const firstNameMatches = [];
-            const fullNameMatches  = [];
-            players.forEach(p => {
-                const np = norm(p);
-                const parts = np.split(' ');
-                const firstName = parts[0] || '';
-                const lastName  = parts.slice(1).join(' ') || '';
-                if (lastName.startsWith(q))                                      lastNameMatches.push(p);
-                else if (firstName.startsWith(q))                                firstNameMatches.push(p);
-                else if (np.startsWith(q))                                       fullNameMatches.push(p);
-                else if (np.replace(/\s+/g,'').includes(q.replace(/\s+/g,''))) fullNameMatches.push(p);
-            });
-            return [...lastNameMatches, ...firstNameMatches, ...fullNameMatches];
-        }
-        input.addEventListener('input', () => {
-            const matches = matchPlayers(allPlayers, input.value);
-            if (!matches.length) { suggs.classList.add('hidden'); return; }
-            suggs.innerHTML = matches.map(m => {
-                const safe = m.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + m + '</div>';
-            }).join('');
-            suggs.classList.remove('hidden');
-        });
-
-        function selectName(name) {
-            input.value = name;
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#guessInput') && !e.target.closest('#suggestions'))
             suggs.classList.add('hidden');
-        }
+    });
 
-        document.addEventListener('click', e => {
-            if (!e.target.closest('#guessInput') && !e.target.closest('#suggestions'))
-                suggs.classList.add('hidden');
-        });
-
-        // ── Init ───────────────────────────────────────────────
-        document.getElementById('nextBtn').addEventListener('click', loadPlayer);
-
-        // Set initial guess limit button highlight
-        updateGuessLimitBtns();
-        window.onload = loadPlayer;
+    // ── Init ─────────────────────────────────────────────────────
+    document.getElementById('nextBtn').addEventListener('click', loadPlayer);
+    updateGuessLimitBtns();
+    window.onload = loadPlayer;
     </script>
 </body>
 </html>
