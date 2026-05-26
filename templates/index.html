@@ -3,41 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Arcade - Home</title>
+  <title>Sports Arcade - Home</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
     body { font-family: 'Inter', sans-serif; background: #0d0d0f; }
 
     .dark-input {
-      background: #18181b;
-      border: 1.5px solid #27272a;
-      border-radius: 10px;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
-      padding: 11px 14px;
-      width: 100%;
-      outline: none;
-      transition: border-color 0.2s;
-      font-family: inherit;
+      background: #18181b; border: 1.5px solid #27272a; border-radius: 10px;
+      color: #fff; font-size: 14px; font-weight: 600; padding: 11px 14px;
+      width: 100%; outline: none; transition: border-color 0.2s; font-family: inherit;
     }
     .dark-input:focus { border-color: #3b82f6; }
     .dark-input::placeholder { color: #3f3f46; }
+
+    /* NFL inputs focus red */
+    .nfl-focus:focus { border-color: #ef4444 !important; }
 
     .setting-label {
       font-size: 10px; font-weight: 700; color: #52525b;
       text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
     }
 
-    .guess-btn {
+    /* Generic toggle button base */
+    .toggle-btn {
       flex: 1; padding: 10px 6px; border: none; border-radius: 8px;
       font-family: inherit; font-size: 14px; font-weight: 800;
       cursor: pointer; transition: background 0.15s, color 0.15s;
       background: #27272a; color: #71717a;
     }
-    .guess-btn.active { background: #3b82f6; color: #fff; }
-    .guess-btn:hover:not(.active) { background: #3f3f46; color: #fff; }
+    .toggle-btn:hover:not(.active) { background: #3f3f46; color: #fff; }
+    .toggle-btn.active-blue   { background: #3b82f6; color: #fff; }
+    .toggle-btn.active-red    { background: #ef4444; color: #fff; }
 
     .pool-btn {
       padding: 8px 12px; border-radius: 8px; border: 1.5px solid #27272a;
@@ -45,34 +42,33 @@
       font-family: inherit; font-size: 12px; font-weight: 700;
       cursor: pointer; transition: all 0.15s; white-space: nowrap;
     }
-    .pool-btn.active { border-color: #3b82f6; background: #1d3461; color: #93c5fd; }
-    .pool-btn:hover:not(.active) { border-color: #52525b; color: #d4d4d8; }
+    .pool-btn:hover:not(.active-blue):not(.active-red) { border-color: #52525b; color: #d4d4d8; }
+    .pool-btn.active-blue { border-color: #3b82f6; background: #1d3461; color: #93c5fd; }
+    .pool-btn.active-red  { border-color: #ef4444; background: #450a0a; color: #fca5a5; }
 
-    .btn-play-blue {
-      width: 100%; background: #3b82f6; color: #fff;
-      font-family: inherit; font-weight: 900; font-size: 14px;
-      letter-spacing: 0.06em; text-transform: uppercase;
-      padding: 14px; border-radius: 12px; border: none;
-      cursor: pointer; transition: background 0.15s, transform 0.1s;
-    }
-    .btn-play-blue:hover { background: #2563eb; }
-    .btn-play-blue:active { transform: scale(0.98); }
-
-    .btn-play-yellow {
-      display: block; width: 100%; background: #eab308; color: #000;
-      font-family: inherit; font-weight: 900; font-size: 14px;
-      letter-spacing: 0.06em; text-transform: uppercase;
+    /* Play buttons */
+    .btn-play {
+      display: block; width: 100%; font-family: inherit; font-weight: 900;
+      font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase;
       padding: 14px; border-radius: 12px; border: none;
       cursor: pointer; transition: background 0.15s, transform 0.1s;
       text-align: center; text-decoration: none;
     }
+    .btn-play:active { transform: scale(0.98); }
+    .btn-play-blue   { background: #3b82f6; color: #fff; }
+    .btn-play-blue:hover { background: #2563eb; }
+    .btn-play-yellow { background: #eab308; color: #000; }
     .btn-play-yellow:hover { background: #facc15; }
-    .btn-play-yellow:active { transform: scale(0.98); }
+    .btn-play-red    { background: #ef4444; color: #fff; }
+    .btn-play-red:hover { background: #dc2626; }
+    .btn-play-orange { background: #f97316; color: #fff; }
+    .btn-play-orange:hover { background: #ea580c; }
 
     .card {
       background: #111113; border: 1px solid #27272a;
-      border-radius: 24px; padding: 32px;
+      border-radius: 24px; padding: 28px;
       transition: border-color 0.2s;
+      display: flex; flex-direction: column; justify-content: space-between;
     }
     .card:hover { border-color: #3f3f46; }
 
@@ -83,153 +79,281 @@
       font-size: 12px; font-weight: 700; color: #52525b;
     }
     .streak-badge .val { font-size: 18px; font-weight: 900; }
-    .streak-badge .blue { color: #3b82f6; }
+    .streak-badge .blue   { color: #3b82f6; }
     .streak-badge .yellow { color: #eab308; }
+    .streak-badge .red    { color: #ef4444; }
+    .streak-badge .orange { color: #f97316; }
+
+    /* Sport divider */
+    .sport-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 20px;
+    }
+    .sport-header-line {
+      flex: 1; height: 1px; background: #1c1c1f;
+    }
+    .sport-header-label {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #3f3f46; white-space: nowrap;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-6 text-white">
 
-  <h1 class="text-6xl font-black mb-2 text-white italic tracking-tighter">NBA ARCADE</h1>
+  <h1 class="text-5xl font-black mb-1 text-white italic tracking-tighter">SPORTS ARCADE</h1>
   <p class="text-zinc-600 mb-10 text-xs uppercase tracking-widest font-bold">Select Your Game Mode</p>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+  <div class="w-full max-w-4xl">
 
-    <!-- GUESSR CARD -->
-    <div class="card">
-      <h2 class="text-2xl font-black text-blue-500 italic mb-1">🏀 GUESSR</h2>
-      <p class="text-zinc-500 text-xs mb-6 leading-relaxed">
-        Study the career stats and name the player. Customize your era, pool, and difficulty.
-      </p>
-
-      <!-- Best streak -->
-      <div class="streak-badge mb-6">
-        <span>🔥 Best Streak</span>
-        <span class="val blue" id="bestStreakGuessr">0</span>
-        <span style="margin-left:auto;font-size:11px;color:#3f3f46">Current</span>
-        <span class="val blue" id="curStreakGuessr" style="font-size:14px">0</span>
-      </div>
-
-      <!-- Year range -->
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <p class="setting-label">From</p>
-          <input type="number" id="startSeason" class="dark-input" value="2000" min="1947" max="2025">
-        </div>
-        <div>
-          <p class="setting-label">To</p>
-          <input type="number" id="endSeason" class="dark-input" value="2026" min="1947" max="2026">
-        </div>
-      </div>
-
-      <!-- Player pool -->
-      <div class="mb-4">
-        <p class="setting-label">Player Pool</p>
-        <div class="flex flex-wrap gap-2">
-          <button class="pool-btn active" data-val="starters">Starters</button>
-          <button class="pool-btn" data-val="bench">Bench</button>
-          <button class="pool-btn" data-val="endbench">Deep Bench</button>
-        </div>
-      </div>
-
-      <!-- Max guesses -->
-      <div class="mb-6">
-        <p class="setting-label">Max Guesses</p>
-        <div style="display:flex;gap:6px">
-          <button class="guess-btn active" data-val="1">1</button>
-          <button class="guess-btn" data-val="2">2</button>
-          <button class="guess-btn" data-val="3">3</button>
-          <button class="guess-btn" data-val="4">4</button>
-          <button class="guess-btn" data-val="5">5</button>
-        </div>
-      </div>
-
-      <button class="btn-play-blue" id="playGuessr">Play Guessr →</button>
+    <!-- ══════════════ NBA ══════════════ -->
+    <div class="sport-header">
+      <div class="sport-header-line"></div>
+      <span class="sport-header-label">🏀 NBA</span>
+      <div class="sport-header-line"></div>
     </div>
 
-    <!-- SPIN CARD -->
-    <div class="card" style="border-color:#27272a;display:flex;flex-direction:column;justify-content:space-between">
-      <div>
-        <h2 class="text-2xl font-black text-yellow-400 italic mb-1">🎰 SPIN</h2>
-        <p class="text-zinc-500 text-xs mb-6 leading-relaxed">
-          Clues are revealed one at a time — stat value, season, position, conference. Guess the player who led the league in that category.
-        </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
 
-        <!-- Best streak -->
-        <div class="streak-badge mb-6">
-          <span>🔥 Best Streak</span>
-          <span class="val yellow" id="bestStreakSpin">0</span>
-          <span style="margin-left:auto;font-size:11px;color:#3f3f46">Current</span>
-          <span class="val yellow" id="curStreakSpin" style="font-size:14px">0</span>
-        </div>
+      <!-- NBA GUESSR -->
+      <div class="card">
+        <div>
+          <h2 class="text-2xl font-black text-blue-500 italic mb-1">🏀 GUESSR</h2>
+          <p class="text-zinc-500 text-xs mb-5 leading-relaxed">
+            Study the career stats and name the player. Customize your era, pool, and difficulty.
+          </p>
 
-        <!-- How it works -->
-        <div style="border:1px solid #27272a;border-radius:12px;overflow:hidden;margin-bottom:24px">
-          <div style="padding:10px 14px;border-bottom:1px solid #1c1c1f;display:flex;gap:10px;align-items:center">
-            <span style="color:#eab308;font-size:12px">①</span>
-            <span style="font-size:12px;font-weight:600;color:#71717a">Stat & value revealed instantly</span>
+          <div class="streak-badge mb-5">
+            <span>🔥 Best</span>
+            <span class="val blue" id="bestStreakGuessr">0</span>
+            <span style="margin-left:auto;font-size:11px;color:#3f3f46">Current</span>
+            <span class="val blue" id="curStreakGuessr" style="font-size:14px">0</span>
           </div>
-          <div style="padding:10px 14px;border-bottom:1px solid #1c1c1f;display:flex;gap:10px;align-items:center">
-            <span style="color:#eab308;font-size:12px">②</span>
-            <span style="font-size:12px;font-weight:600;color:#71717a">Reveal season, position, conference as hints</span>
+
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div><p class="setting-label">From</p>
+              <input type="number" id="nbaStart" class="dark-input" value="2000" min="1947" max="2025"></div>
+            <div><p class="setting-label">To</p>
+              <input type="number" id="nbaEnd" class="dark-input" value="2026" min="1947" max="2026"></div>
           </div>
-          <div style="padding:10px 14px;display:flex;gap:10px;align-items:center">
-            <span style="color:#eab308;font-size:12px">③</span>
-            <span style="font-size:12px;font-weight:600;color:#71717a">Guess the stat leader — one shot</span>
+
+          <div class="mb-4">
+            <p class="setting-label">Player Pool</p>
+            <div class="flex flex-wrap gap-2">
+              <button class="pool-btn active-blue" data-val="starters">Starters</button>
+              <button class="pool-btn" data-val="bench">Bench</button>
+              <button class="pool-btn" data-val="endbench">Deep Bench</button>
+            </div>
+          </div>
+
+          <div class="mb-6">
+            <p class="setting-label">Max Guesses</p>
+            <div style="display:flex;gap:6px">
+              <button class="toggle-btn nba-guess active-blue" data-val="1">1</button>
+              <button class="toggle-btn nba-guess" data-val="2">2</button>
+              <button class="toggle-btn nba-guess" data-val="3">3</button>
+              <button class="toggle-btn nba-guess" data-val="4">4</button>
+              <button class="toggle-btn nba-guess" data-val="5">5</button>
+            </div>
           </div>
         </div>
+        <button class="btn-play btn-play-blue" id="playNbaGuessr">Play NBA Guessr →</button>
       </div>
 
-      <a href="/spin" class="btn-play-yellow">Start Spinning →</a>
+      <!-- NBA SPIN -->
+      <div class="card">
+        <div>
+          <h2 class="text-2xl font-black text-yellow-400 italic mb-1">🎰 SPIN</h2>
+          <p class="text-zinc-500 text-xs mb-5 leading-relaxed">
+            Clues revealed one at a time — stat, season, position, conference. Guess the season leader.
+          </p>
+
+          <div class="streak-badge mb-5">
+            <span>🔥 Best</span>
+            <span class="val yellow" id="bestStreakSpin">0</span>
+            <span style="margin-left:auto;font-size:11px;color:#3f3f46">Current</span>
+            <span class="val yellow" id="curStreakSpin" style="font-size:14px">0</span>
+          </div>
+
+          <div style="border:1px solid #27272a;border-radius:12px;overflow:hidden;margin-bottom:24px">
+            <div style="padding:10px 14px;border-bottom:1px solid #1c1c1f;display:flex;gap:10px;align-items:center">
+              <span style="color:#eab308;font-size:12px">①</span>
+              <span style="font-size:12px;font-weight:600;color:#71717a">Stat & value revealed</span>
+            </div>
+            <div style="padding:10px 14px;border-bottom:1px solid #1c1c1f;display:flex;gap:10px;align-items:center">
+              <span style="color:#eab308;font-size:12px">②</span>
+              <span style="font-size:12px;font-weight:600;color:#71717a">Season, position, conference as hints</span>
+            </div>
+            <div style="padding:10px 14px;display:flex;gap:10px;align-items:center">
+              <span style="color:#eab308;font-size:12px">③</span>
+              <span style="font-size:12px;font-weight:600;color:#71717a">Guess the stat leader — one shot</span>
+            </div>
+          </div>
+        </div>
+        <a href="/spin" class="btn-play btn-play-yellow">Start Spinning →</a>
+      </div>
+    </div>
+
+    <!-- ══════════════ NFL ══════════════ -->
+    <div class="sport-header">
+      <div class="sport-header-line"></div>
+      <span class="sport-header-label">🏈 NFL</span>
+      <div class="sport-header-line"></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+
+      <!-- NFL GUESSR -->
+      <div class="card" style="border-color:#1c1c1f">
+        <div>
+          <h2 class="text-2xl font-black italic mb-1" style="color:#ef4444">🏈 GUESSR</h2>
+          <p class="text-zinc-500 text-xs mb-5 leading-relaxed">
+            Study the career stats and name the NFL player. Choose QBs, skill positions, or everyone.
+          </p>
+
+          <div class="streak-badge mb-5">
+            <span>🔥 Best</span>
+            <span class="val red" id="bestStreakNflGuessr">0</span>
+            <span style="margin-left:auto;font-size:11px;color:#3f3f46">Current</span>
+            <span class="val red" id="curStreakNflGuessr" style="font-size:14px">0</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div><p class="setting-label">From</p>
+              <input type="number" id="nflStart" class="dark-input nfl-focus" value="1999" min="1999" max="2024"></div>
+            <div><p class="setting-label">To</p>
+              <input type="number" id="nflEnd" class="dark-input nfl-focus" value="2024" min="1999" max="2024"></div>
+          </div>
+
+          <div class="mb-4">
+            <p class="setting-label">Position Group</p>
+            <div class="flex flex-wrap gap-2">
+              <button class="pool-btn active-red nfl-pool" data-val="qb">QBs</button>
+              <button class="pool-btn nfl-pool" data-val="skill">Skill (WR/RB/TE)</button>
+              <button class="pool-btn nfl-pool" data-val="all">All Positions</button>
+            </div>
+          </div>
+
+          <div class="mb-6">
+            <p class="setting-label">Max Guesses</p>
+            <div style="display:flex;gap:6px">
+              <button class="toggle-btn nfl-guess" data-val="1">1</button>
+              <button class="toggle-btn nfl-guess" data-val="2">2</button>
+              <button class="toggle-btn nfl-guess active-red" data-val="3">3</button>
+              <button class="toggle-btn nfl-guess" data-val="4">4</button>
+              <button class="toggle-btn nfl-guess" data-val="5">5</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn-play btn-play-red" id="playNflGuessr">Play NFL Guessr →</button>
+      </div>
+
+      <!-- NFL SPIN -->
+      <div class="card" style="border-color:#1c1c1f">
+        <div>
+          <h2 class="text-2xl font-black italic mb-1" style="color:#f97316">🎰 NFL SPIN</h2>
+          <p class="text-zinc-500 text-xs mb-5 leading-relaxed">
+            Who led the NFL in that stat that season? Clues revealed one by one — position, conference, and more.
+          </p>
+
+          <div class="streak-badge mb-5">
+            <span>🔥 Best</span>
+            <span class="val orange" id="bestStreakNflSpin">0</span>
+            <span style="margin-left:auto;font-size:11px;color:#3f3f46">Current</span>
+            <span class="val orange" id="curStreakNflSpin" style="font-size:14px">0</span>
+          </div>
+
+          <div style="border:1px solid #27272a;border-radius:12px;overflow:hidden;margin-bottom:24px">
+            <div style="padding:10px 14px;border-bottom:1px solid #1c1c1f;display:flex;gap:10px;align-items:center">
+              <span style="color:#f97316;font-size:12px">①</span>
+              <span style="font-size:12px;font-weight:600;color:#71717a">Stat category & value revealed</span>
+            </div>
+            <div style="padding:10px 14px;border-bottom:1px solid #1c1c1f;display:flex;gap:10px;align-items:center">
+              <span style="color:#f97316;font-size:12px">②</span>
+              <span style="font-size:12px;font-weight:600;color:#71717a">Season, position, conference as hints</span>
+            </div>
+            <div style="padding:10px 14px;display:flex;gap:10px;align-items:center">
+              <span style="color:#f97316;font-size:12px">③</span>
+              <span style="font-size:12px;font-weight:600;color:#71717a">Name the NFL stat leader — one shot</span>
+            </div>
+          </div>
+        </div>
+        <a href="/nfl_spin" class="btn-play btn-play-orange">Start NFL Spinning →</a>
+      </div>
     </div>
 
   </div>
 
-  <footer class="mt-12 text-zinc-700 text-xs font-bold tracking-widest uppercase">
-    NBA Arcade &bull; 2026
+  <footer class="mt-4 text-zinc-700 text-xs font-bold tracking-widest uppercase">
+    Sports Arcade &bull; 2026
   </footer>
 
   <script>
-    // ── LocalStorage streaks ──────────────────────────────────
+    // ── Streaks ───────────────────────────────────────────────
     function loadStreaks() {
-      document.getElementById('bestStreakGuessr').textContent = localStorage.getItem('guessr_best') || 0;
-      document.getElementById('curStreakGuessr').textContent  = localStorage.getItem('guessr_cur')  || 0;
-      document.getElementById('bestStreakSpin').textContent   = localStorage.getItem('spin_best')   || 0;
-      document.getElementById('curStreakSpin').textContent    = localStorage.getItem('spin_cur')    || 0;
+      document.getElementById('bestStreakGuessr').textContent    = localStorage.getItem('guessr_best')     || 0;
+      document.getElementById('curStreakGuessr').textContent     = localStorage.getItem('guessr_cur')      || 0;
+      document.getElementById('bestStreakSpin').textContent      = localStorage.getItem('spin_best')       || 0;
+      document.getElementById('curStreakSpin').textContent       = localStorage.getItem('spin_cur')        || 0;
+      document.getElementById('bestStreakNflGuessr').textContent = localStorage.getItem('nfl_guessr_best') || 0;
+      document.getElementById('curStreakNflGuessr').textContent  = localStorage.getItem('nfl_guessr_cur')  || 0;
+      document.getElementById('bestStreakNflSpin').textContent   = localStorage.getItem('nfl_spin_best')   || 0;
+      document.getElementById('curStreakNflSpin').textContent    = localStorage.getItem('nfl_spin_cur')    || 0;
     }
     loadStreaks();
 
-    // ── Pool buttons (multi-select toggle) ────────────────────
-    document.querySelectorAll('.pool-btn').forEach(btn => {
+    // ── NBA pool buttons (multi-select) ───────────────────────
+    document.querySelectorAll('.pool-btn:not(.nfl-pool)').forEach(btn => {
       btn.addEventListener('click', () => {
-        btn.classList.toggle('active');
-        // Ensure at least one is always selected
-        const anyActive = [...document.querySelectorAll('.pool-btn')].some(b => b.classList.contains('active'));
-        if (!anyActive) btn.classList.add('active');
+        btn.classList.toggle('active-blue');
+        const anyActive = [...document.querySelectorAll('.pool-btn:not(.nfl-pool)')].some(b => b.classList.contains('active-blue'));
+        if (!anyActive) btn.classList.add('active-blue');
       });
     });
 
-    // ── Guess buttons (single select) ─────────────────────────
-    let selectedGuesses = 1;
-    document.querySelectorAll('.guess-btn').forEach(btn => {
+    // ── NFL pool buttons (single-select) ─────────────────────
+    document.querySelectorAll('.nfl-pool').forEach(btn => {
       btn.addEventListener('click', () => {
-        selectedGuesses = parseInt(btn.dataset.val);
-        document.querySelectorAll('.guess-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        document.querySelectorAll('.nfl-pool').forEach(b => b.classList.remove('active-red'));
+        btn.classList.add('active-red');
       });
     });
 
-    // ── Play Guessr ───────────────────────────────────────────
-    document.getElementById('playGuessr').addEventListener('click', () => {
-      const start = document.getElementById('startSeason').value;
-      const end   = document.getElementById('endSeason').value;
-      const types = [...document.querySelectorAll('.pool-btn.active')].map(b => b.dataset.val).join(',');
+    // ── NBA guess buttons ─────────────────────────────────────
+    let nbaGuesses = 1;
+    document.querySelectorAll('.nba-guess').forEach(btn => {
+      btn.addEventListener('click', () => {
+        nbaGuesses = parseInt(btn.dataset.val);
+        document.querySelectorAll('.nba-guess').forEach(b => b.classList.remove('active-blue'));
+        btn.classList.add('active-blue');
+      });
+    });
 
-      if (parseInt(start) > parseInt(end)) {
-        alert('Start year must be before end year.');
-        return;
-      }
+    // ── NFL guess buttons ─────────────────────────────────────
+    let nflGuesses = 3;
+    document.querySelectorAll('.nfl-guess').forEach(btn => {
+      btn.addEventListener('click', () => {
+        nflGuesses = parseInt(btn.dataset.val);
+        document.querySelectorAll('.nfl-guess').forEach(b => b.classList.remove('active-red'));
+        btn.classList.add('active-red');
+      });
+    });
 
-      window.location.href = `/guess?start_season=${start}&end_season=${end}&types=${types}&max_guesses=${selectedGuesses}`;
+    // ── Play NBA Guessr ───────────────────────────────────────
+    document.getElementById('playNbaGuessr').addEventListener('click', () => {
+      const start = document.getElementById('nbaStart').value;
+      const end   = document.getElementById('nbaEnd').value;
+      const types = [...document.querySelectorAll('.pool-btn:not(.nfl-pool).active-blue')].map(b => b.dataset.val).join(',');
+      if (parseInt(start) > parseInt(end)) { alert('Start year must be before end year.'); return; }
+      window.location.href = `/guess?start_season=${start}&end_season=${end}&types=${types}&max_guesses=${nbaGuesses}`;
+    });
+
+    // ── Play NFL Guessr ───────────────────────────────────────
+    document.getElementById('playNflGuessr').addEventListener('click', () => {
+      const start = document.getElementById('nflStart').value;
+      const end   = document.getElementById('nflEnd').value;
+      const types = document.querySelector('.nfl-pool.active-red')?.dataset.val || 'qb';
+      if (parseInt(start) > parseInt(end)) { alert('Start year must be before end year.'); return; }
+      window.location.href = `/nfl_guess?start_season=${start}&end_season=${end}&types=${types}&max_guesses=${nflGuesses}`;
     });
   </script>
 </body>
