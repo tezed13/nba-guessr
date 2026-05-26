@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>NFL Spin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        * { box-sizing: border-box; }
+        body { font-family:'Inter',sans-serif; background:#0d0d0f; color:#fff; min-height:100vh; }
+
+        .reel-wrap { height:56px; overflow:hidden; position:relative; }
+        .reel-track { display:flex; flex-direction:column; transition:none; }
+        .reel-item { height:56px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:900; white-space:nowrap; padding:0 8px; }
+
+        .slot-card { background:#111113; border:1px solid #27272a; border-radius:16px; padding:14px 16px; text-align:center; transition:border-color 0.3s; }
+        .slot-card.locked-red    { border-color:#ef4444; }
+        .slot-card.locked-blue   { border-color:#3b82f6; }
+        .slot-label { font-size:10px; font-weight:700; color:#52525b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
+
+        .clue-card { background:#111113; border:1px solid #27272a; border-radius:16px; padding:14px 16px; text-align:center; transition:all 0.35s ease; }
+        .clue-label { font-size:10px; font-weight:700; color:#52525b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
+        .clue-val { font-size:20px; font-weight:900; color:#fff; }
+
+        .dark-input { background:#18181b; border:1.5px solid #27272a; border-radius:10px; color:#fff; font-size:15px; font-weight:600; padding:13px 16px; width:100%; outline:none; transition:border-color 0.2s; font-family:inherit; }
+        .dark-input:focus { border-color:#ef4444; }
+        .dark-input::placeholder { color:#3f3f46; }
+        .dark-input:disabled { opacity:0.4; cursor:not-allowed; }
+
+        #suggestions { position:absolute; z-index:30; width:100%; background:#18181b; border:1.5px solid #27272a; border-radius:10px; bottom:calc(100% + 6px); top:auto; overflow-y:auto; max-height:320px; }
+        .sug-item { padding:11px 16px; font-size:14px; font-weight:600; color:#d4d4d8; cursor:pointer; border-bottom:1px solid #27272a; }
+        .sug-item:last-child { border-bottom:none; }
+        .sug-item:hover { background:#ef4444; color:#fff; }
+
+        .btn { border:none; border-radius:10px; font-family:inherit; font-weight:900; font-size:14px; letter-spacing:0.05em; text-transform:uppercase; cursor:pointer; padding:13px 16px; transition:background 0.15s,transform 0.1s; }
+        .btn:active { transform:scale(0.97); }
+        .btn:disabled { opacity:0.4; cursor:not-allowed; }
+        .btn-red  { background:#ef4444; color:#fff; }
+        .btn-red:hover:not(:disabled) { background:#dc2626; }
+        .btn-blue { background:#3b82f6; color:#fff; }
+        .btn-blue:hover { background:#2563eb; }
+
+        .banner { border-radius:10px; padding:12px 16px; font-weight:800; font-size:14px; text-align:center; }
+        .banner-ok  { background:#052e16; border:1px solid #166534; color:#4ade80; }
+        .banner-err { background:#450a0a; border:1px solid #991b1b; color:#f87171; }
+
+        .streak-pill { background:#18181b; border:1px solid #27272a; border-radius:999px; padding:6px 18px; font-size:13px; font-weight:700; color:#52525b; display:inline-flex; align-items:center; gap:8px; }
+        .streak-pill .num { color:#ef4444; font-size:18px; font-weight:900; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-5">
+
+    <nav class="w-full max-w-xl mb-5 text-left">
+        <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Menu</a>
+    </nav>
+
+    <h1 style="font-size:36px;font-weight:900;font-style:italic;letter-spacing:-0.02em;margin-bottom:4px;
+               background:linear-gradient(135deg,#ef4444,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+        NFL SPIN
+    </h1>
+    <p style="font-size:11px;color:#52525b;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:24px">
+        Guess the season stat leader
+    </p>
+
+    <!-- Slot machines -->
+    <div style="display:grid;grid-template-columns:1fr 80px 1fr;gap:10px;width:100%;max-width:560px;margin-bottom:14px">
+        <div class="slot-card" id="card-cat">
+            <div class="slot-label">Category</div>
+            <div class="reel-wrap">
+                <div class="reel-track" id="reel-cat"><div class="reel-item" style="color:#ef4444">—</div></div>
+            </div>
+        </div>
+        <div class="slot-card" id="card-val" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div class="slot-label">Value</div>
+            <div id="val-display" style="font-size:22px;font-weight:900;color:#ef4444;min-height:34px;display:flex;align-items:center">—</div>
+        </div>
+        <div class="slot-card" id="card-season">
+            <div class="slot-label">Season</div>
+            <div class="reel-wrap">
+                <div class="reel-track" id="reel-season"><div class="reel-item" style="color:#fff">—</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pos + Conf clue cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:560px;margin-bottom:14px">
+        <div class="clue-card">
+            <div class="clue-label">Position</div>
+            <div class="clue-val" id="clue-pos">—</div>
+        </div>
+        <div class="clue-card">
+            <div class="clue-label">Conference</div>
+            <div class="clue-val" id="clue-conf">—</div>
+        </div>
+    </div>
+
+    <!-- Guess panel -->
+    <div style="width:100%;max-width:560px;background:#111113;border:1px solid #27272a;border-radius:20px;padding:20px">
+        <div style="position:relative;margin-bottom:12px">
+            <input type="text" id="guessInput" class="dark-input" placeholder="Name the player..." disabled>
+            <div id="suggestions" class="hidden"></div>
+        </div>
+        <div id="resultBanner" class="banner" style="display:none;margin-bottom:12px"></div>
+        <div style="display:flex;gap:10px">
+            <button id="submitBtn" class="btn btn-red" style="flex:1" disabled>Submit</button>
+            <button id="nextBtn"   class="btn btn-blue" style="flex:1;display:none">Next Spin →</button>
+        </div>
+        <div style="margin-top:16px;text-align:center">
+            <div class="streak-pill">🔥 Streak <span class="num" id="streakVal">0</span>
+                <span style="color:#3f3f46;font-size:11px;margin-left:4px">Best</span>
+                <span class="num" id="bestVal" style="color:#3b82f6;font-size:14px">0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const NFL_CATEGORIES = [
+            "Passing Yards","Passing TDs","Rushing Yards","Rushing TDs",
+            "Receptions","Receiving Yards","Receiving TDs",
+            "Interceptions Thrown","Sacks Taken","PPR Fantasy Points"
+        ];
+        const SEASONS = [];
+        for (let y=1999;y<=2024;y++) SEASONS.push(y);
+
+        let currentWinner = "";
+        let streak     = parseInt(localStorage.getItem('nfl_spin_cur')  || '0');
+        let bestStreak = parseInt(localStorage.getItem('nfl_spin_best') || '0');
+        let playerNames = [];
+        let isSpinning  = false;
+
+        document.getElementById('streakVal').textContent = streak;
+        document.getElementById('bestVal').textContent   = bestStreak;
+
+        fetch('/nfl/all_players').then(r=>r.json()).then(d=>playerNames=d);
+
+        function spinReel(trackId, items, durationMs, finalValue, color) {
+            return new Promise(resolve => {
+                const track = document.getElementById(trackId);
+                let elapsed = 0;
+                const fps   = 80;
+                const iv = setInterval(()=>{
+                    elapsed += fps;
+                    const val = items[Math.floor(Math.random()*items.length)];
+                    track.innerHTML = `<div class="reel-item" style="color:${color}">${val}</div>`;
+                    if (elapsed >= durationMs) {
+                        clearInterval(iv);
+                        track.innerHTML = `<div class="reel-item" style="color:${color};font-size:13px">${finalValue}</div>`;
+                        resolve();
+                    }
+                }, fps);
+            });
+        }
+
+        function resetUI() {
+            currentWinner = "";
+            document.getElementById('guessInput').value = "";
+            document.getElementById('guessInput').disabled = true;
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').style.display = "block";
+            document.getElementById('nextBtn').style.display   = "none";
+            document.getElementById('resultBanner').style.display = "none";
+            document.getElementById('suggestions').classList.add('hidden');
+            document.getElementById('reel-cat').innerHTML    = `<div class="reel-item" style="color:#ef4444">—</div>`;
+            document.getElementById('val-display').textContent = "—";
+            document.getElementById('reel-season').innerHTML = `<div class="reel-item" style="color:#fff">—</div>`;
+            document.getElementById('card-cat').className    = 'slot-card';
+            document.getElementById('card-val').className    = 'slot-card';
+            document.getElementById('card-season').className = 'slot-card';
+            document.getElementById('clue-pos').textContent  = '—';
+            document.getElementById('clue-conf').textContent = '—';
+        }
+
+        async function loadSpin() {
+            if (isSpinning) return;
+            isSpinning = true;
+            resetUI();
+            try {
+                const res = await fetch('/nfl/spin_data');
+                if (!res.ok) throw new Error("Server error");
+                const data = await res.json();
+
+                document.getElementById('clue-pos').textContent  = data.clues.pos;
+                document.getElementById('clue-conf').textContent = data.clues.conf;
+                currentWinner = data.winner;
+
+                await spinReel('reel-cat', NFL_CATEGORIES, 2000, data.clues.stat_name, '#ef4444');
+                document.getElementById('card-cat').classList.add('locked-red');
+
+                await new Promise(r=>setTimeout(r,200));
+                document.getElementById('val-display').textContent = data.clues.stat_val;
+                document.getElementById('card-val').classList.add('locked-red');
+
+                await new Promise(r=>setTimeout(r,300));
+                await spinReel('reel-season', SEASONS, 2000, data.clues.season, '#fff');
+                document.getElementById('card-season').classList.add('locked-blue');
+
+                document.getElementById('guessInput').disabled  = false;
+                document.getElementById('submitBtn').disabled   = false;
+            } catch(err) {
+                console.error(err);
+                document.getElementById('reel-cat').innerHTML =
+                    `<div class="reel-item" style="color:#f87171;font-size:12px">Error — retry</div>`;
+                document.getElementById('nextBtn').style.display = "block";
+            } finally {
+                isSpinning = false;
+            }
+        }
+
+        document.getElementById('submitBtn').onclick = () => {
+            if (!currentWinner) return;
+            const rawGuess = document.getElementById('guessInput').value.trim();
+            if (!playerNames.some(p=>norm(p)===norm(rawGuess))) {
+                document.getElementById('guessInput').style.borderColor='#ef4444';
+                setTimeout(()=>document.getElementById('guessInput').style.borderColor='',800);
+                return;
+            }
+            const correct = rawGuess.toLowerCase()===currentWinner.toLowerCase();
+            const banner  = document.getElementById('resultBanner');
+
+            if (correct) {
+                streak++;
+                if(streak>bestStreak){bestStreak=streak;localStorage.setItem('nfl_spin_best',bestStreak);}
+                localStorage.setItem('nfl_spin_cur',streak);
+                banner.textContent = `✅ TOUCHDOWN! It was ${currentWinner}`;
+                banner.className   = "banner banner-ok";
+            } else {
+                streak=0; localStorage.setItem('nfl_spin_cur',0);
+                banner.textContent = `❌ Fumble! It was ${currentWinner}`;
+                banner.className   = "banner banner-err";
+            }
+            banner.style.display = "block";
+            document.getElementById('streakVal').textContent = streak;
+            document.getElementById('bestVal').textContent   = bestStreak;
+            document.getElementById('submitBtn').style.display = "none";
+            document.getElementById('nextBtn').style.display   = "block";
+        };
+
+        // ── Autocomplete ──────────────────────────────────────
+        const input = document.getElementById('guessInput');
+        const suggs = document.getElementById('suggestions');
+
+        function norm(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+
+        function matchPlayers(players,val) {
+            const q=norm(val.trim());
+            if(q.length<2) return [];
+            const last=[],first=[],full=[];
+            players.forEach(p=>{
+                const np=norm(p),parts=np.split(' ');
+                const fn=parts[0]||'',ln=parts.slice(1).join(' ')||'';
+                if(ln.startsWith(q)) last.push(p);
+                else if(fn.startsWith(q)) first.push(p);
+                else if(np.startsWith(q)||np.replace(/[^a-z0-9]/g,'').includes(q.replace(/[^a-z0-9]/g,''))) full.push(p);
+            });
+            return [...last,...first,...full];
+        }
+
+        input.addEventListener('input',()=>{
+            const matches=matchPlayers(playerNames,input.value);
+            if(!matches.length){suggs.classList.add('hidden');return;}
+            suggs.innerHTML=matches.map(n=>{
+                const safe=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                return `<div class="sug-item" onclick="selectName('${safe}')">${n}</div>`;
+            }).join('');
+            suggs.classList.remove('hidden');
+        });
+
+        function selectName(n){input.value=n;suggs.classList.add('hidden');}
+        document.addEventListener('click',e=>{
+            if(!e.target.closest('#guessInput')&&!e.target.closest('#suggestions')) suggs.classList.add('hidden');
+        });
+
+        document.getElementById('nextBtn').onclick = loadSpin;
+        window.onload = loadSpin;
+    </script>
+</body>
+</html>

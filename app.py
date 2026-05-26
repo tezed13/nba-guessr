@@ -1,5 +1,6 @@
 import random
 import re
+import math
 import sqlite3
 import pandas as pd
 from pathlib import Path
@@ -51,7 +52,7 @@ def init_db():
 init_db()
 
 # ---------------------------------------------------------------------------
-# Load & normalise CSV once at startup
+# NBA — Load & normalise CSV once at startup
 # ---------------------------------------------------------------------------
 
 csv_path   = BASE_DIR / "Data" / "Player Per Game.csv"
@@ -63,30 +64,27 @@ try:
     stats_df.columns = [c.lower() for c in stats_df.columns]
     stats_df["season"] = stats_df["season"].astype(int)
     stats_df = stats_df[stats_df["lg"] == "NBA"].copy()
-    print(f"Loaded {len(stats_df)} NBA rows.")
+    print(f"[NBA] Loaded {len(stats_df)} rows.")
 except Exception as e:
     stats_df = pd.DataFrame()
-    print(f"Error loading stats CSV: {e}")
+    print(f"[NBA] Error loading stats CSV: {e}")
 
 try:
     info_df = pd.read_csv(info_path)
     info_df.columns = [c.lower() for c in info_df.columns]
-
     def inches_to_ft(val):
         try:
             total = int(val)
-            feet, inches = total // 12, total % 12
-            return str(feet) + "'" + str(inches) + '"'
+            return f"{total // 12}'{total % 12}\""
         except:
             return None
-
     info_df["height"] = info_df["ht_in_in"].apply(inches_to_ft)
     info_df["hof"]    = info_df["hof"].fillna("").astype(str).str.strip()
     info_lookup = info_df.set_index("player_id")[["height", "hof"]].to_dict("index")
-    print(f"Loaded {len(info_lookup)} player info rows.")
+    print(f"[NBA] Loaded {len(info_lookup)} player info rows.")
 except Exception as e:
     info_lookup = {}
-    print(f"Error loading info CSV: {e}")
+    print(f"[NBA] Error loading info CSV: {e}")
 
 try:
     draft_df = pd.read_csv(draft_path)
@@ -94,18 +92,17 @@ try:
     draft_df = draft_df.dropna(subset=["player_id", "overall_pick"])
     draft_df["overall_pick"] = draft_df["overall_pick"].astype(int)
     draft_lookup = draft_df.groupby("player_id")["overall_pick"].first().to_dict()
-    print(f"Loaded {len(draft_lookup)} draft pick rows.")
+    print(f"[NBA] Loaded {len(draft_lookup)} draft pick rows.")
 except Exception as e:
     draft_lookup = {}
-    print(f"Error loading draft CSV: {e}")
+    print(f"[NBA] Error loading draft CSV: {e}")
 
 awards_path   = BASE_DIR / "Data" / "Player Award Shares.csv"
 allstar_path  = BASE_DIR / "Data" / "All-Star Selections.csv"
 eosteams_path = BASE_DIR / "Data" / "End of Season Teams.csv"
 
-def build_awards_lookup():
+def build_nba_awards_lookup():
     awards = {}
-
     try:
         aw = pd.read_csv(awards_path)
         aw.columns = [c.lower() for c in aw.columns]
@@ -113,22 +110,17 @@ def build_awards_lookup():
         for pid, grp in wins.groupby("player_id"):
             if pid not in awards: awards[pid] = {}
             for award in grp["award"].unique():
-                key = award.lower().strip()
-                awards[pid][key] = int((grp["award"] == award).sum())
-        print(f"Loaded award shares for {len(awards)} players.")
+                awards[pid][award.lower().strip()] = int((grp["award"] == award).sum())
     except Exception as e:
-        print(f"Error loading awards CSV: {e}")
-
+        print(f"[NBA] Awards error: {e}")
     try:
         as_df = pd.read_csv(allstar_path)
         as_df.columns = [c.lower() for c in as_df.columns]
         for pid, grp in as_df.groupby("player_id"):
             if pid not in awards: awards[pid] = {}
             awards[pid]["allstar"] = len(grp)
-        print(f"Loaded All-Star data for {as_df['player_id'].nunique()} players.")
     except Exception as e:
-        print(f"Error loading All-Star CSV: {e}")
-
+        print(f"[NBA] All-Star error: {e}")
     try:
         eos = pd.read_csv(eosteams_path)
         eos.columns = [c.lower() for c in eos.columns]
@@ -140,32 +132,13 @@ def build_awards_lookup():
             if len(alldef): awards[pid]["alldef"] = len(alldef)
             first = allnba[allnba["number_tm"] == 1]
             if len(first): awards[pid]["allnba_first"] = len(first)
-        print(f"Loaded EOS team data for {eos['player_id'].nunique()} players.")
     except Exception as e:
-        print(f"Error loading EOS teams CSV: {e}")
-
+        print(f"[NBA] EOS teams error: {e}")
     return awards
 
-awards_lookup = build_awards_lookup()
+nba_awards_lookup = build_nba_awards_lookup()
 
-# ---------------------------------------------------------------------------
-# Conference mapping
-# ---------------------------------------------------------------------------
-
-TEAM_TO_CONF = {
-    "ATL": "Eastern", "BOS": "Eastern", "BKN": "Eastern", "NJN": "Eastern",
-    "CHA": "Eastern", "CHI": "Eastern", "CLE": "Eastern", "DET": "Eastern",
-    "IND": "Eastern", "MIA": "Eastern", "MIL": "Eastern", "NYK": "Eastern",
-    "ORL": "Eastern", "PHI": "Eastern", "TOR": "Eastern", "WAS": "Eastern",
-    "WSB": "Eastern",
-    "DAL": "Western", "DEN": "Western", "GSW": "Western", "HOU": "Western",
-    "LAC": "Western", "LAL": "Western", "MEM": "Western", "MIN": "Western",
-    "NOP": "Western", "NOH": "Western", "OKC": "Western", "SEA": "Western",
-    "PHO": "Western", "PHX": "Western", "POR": "Western", "SAC": "Western",
-    "SAS": "Western", "UTA": "Western",
-}
-
-STAT_MAP = {
+NBA_STAT_MAP = {
     "pts_per_game":  "Points Per Game",
     "trb_per_game":  "Rebounds Per Game",
     "ast_per_game":  "Assists Per Game",
@@ -179,6 +152,141 @@ STAT_MAP = {
     "mp_per_game":   "Minutes Per Game",
 }
 
+TEAM_TO_CONF_NBA = {
+    "ATL": "Eastern", "BOS": "Eastern", "BKN": "Eastern", "NJN": "Eastern",
+    "CHA": "Eastern", "CHI": "Eastern", "CLE": "Eastern", "DET": "Eastern",
+    "IND": "Eastern", "MIA": "Eastern", "MIL": "Eastern", "NYK": "Eastern",
+    "ORL": "Eastern", "PHI": "Eastern", "TOR": "Eastern", "WAS": "Eastern",
+    "WSB": "Eastern",
+    "DAL": "Western", "DEN": "Western", "GSW": "Western", "HOU": "Western",
+    "LAC": "Western", "LAL": "Western", "MEM": "Western", "MIN": "Western",
+    "NOP": "Western", "NOH": "Western", "OKC": "Western", "SEA": "Western",
+    "PHO": "Western", "PHX": "Western", "POR": "Western", "SAC": "Western",
+    "SAS": "Western", "UTA": "Western",
+}
+
+# ---------------------------------------------------------------------------
+# NFL — Load via nflreadpy at startup (cached to disk after first download)
+# ---------------------------------------------------------------------------
+
+NFL_CACHE = BASE_DIR / "Data" / "nfl_cache"
+NFL_CACHE.mkdir(parents=True, exist_ok=True)
+
+nfl_stats_df   = pd.DataFrame()
+nfl_players_df = pd.DataFrame()
+nfl_draft_df   = pd.DataFrame()
+
+def _sanitise(df: pd.DataFrame) -> pd.DataFrame:
+    """Replace NaN/Inf so rows are JSON-safe."""
+    for col in df.select_dtypes(include="number").columns:
+        df[col] = df[col].apply(
+            lambda v: None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+        )
+    return df
+
+def load_nfl_data():
+    global nfl_stats_df, nfl_players_df, nfl_draft_df
+    cache_stats   = NFL_CACHE / "player_stats.parquet"
+    cache_players = NFL_CACHE / "players.parquet"
+    cache_draft   = NFL_CACHE / "draft_picks.parquet"
+
+    try:
+        import nflreadpy as nfl
+
+        # ── Player stats (reg season, 1999-present) ───────────────────────
+        if cache_stats.exists():
+            nfl_stats_df = pd.read_parquet(cache_stats)
+            print(f"[NFL] Stats loaded from cache: {len(nfl_stats_df)} rows")
+        else:
+            print("[NFL] Downloading player stats (this takes ~30s first run)…")
+            raw = nfl.load_player_stats(seasons=True, summary_level="reg")
+            nfl_stats_df = raw.to_pandas()
+            nfl_stats_df.to_parquet(cache_stats, index=False)
+            print(f"[NFL] Stats downloaded & cached: {len(nfl_stats_df)} rows")
+
+        # ── Players info (height, position, draft) ────────────────────────
+        if cache_players.exists():
+            nfl_players_df = pd.read_parquet(cache_players)
+            print(f"[NFL] Players loaded from cache: {len(nfl_players_df)} rows")
+        else:
+            print("[NFL] Downloading player info…")
+            raw = nfl.load_players()
+            nfl_players_df = raw.to_pandas()
+            nfl_players_df.to_parquet(cache_players, index=False)
+            print(f"[NFL] Players downloaded & cached: {len(nfl_players_df)} rows")
+
+        # ── Draft picks (Pro Bowls, All-Pro, HOF) ─────────────────────────
+        if cache_draft.exists():
+            nfl_draft_df = pd.read_parquet(cache_draft)
+            print(f"[NFL] Draft loaded from cache: {len(nfl_draft_df)} rows")
+        else:
+            print("[NFL] Downloading draft picks…")
+            raw = nfl.load_draft_picks()
+            nfl_draft_df = raw.to_pandas()
+            nfl_draft_df.to_parquet(cache_draft, index=False)
+            print(f"[NFL] Draft downloaded & cached: {len(nfl_draft_df)} rows")
+
+    except Exception as e:
+        print(f"[NFL] Data load error: {e}")
+        print("[NFL] NFL routes will return errors until data is available.")
+
+load_nfl_data()
+
+# Build fast lookup dicts from players + draft tables
+def build_nfl_lookups():
+    player_info = {}   # gsis_id -> {height_ft, position, draft_pick, draft_round}
+    draft_info  = {}   # gsis_id -> {probowls, allpro, hof}
+
+    if not nfl_players_df.empty:
+        for _, row in nfl_players_df.iterrows():
+            gid = row.get("gsis_id")
+            if not gid: continue
+            h = row.get("height")  # already in inches
+            try:
+                hi = int(h)
+                h_str = f"{hi // 12}'{hi % 12}\""
+            except:
+                h_str = None
+            player_info[gid] = {
+                "height":   h_str,
+                "position": row.get("position") or row.get("position_group"),
+                "college":  row.get("college_name"),
+            }
+
+    if not nfl_draft_df.empty:
+        for _, row in nfl_draft_df.iterrows():
+            gid = row.get("gsis_id")
+            if not gid: continue
+            draft_info[gid] = {
+                "pick":      row.get("pick"),
+                "round":     row.get("round"),
+                "probowls":  row.get("probowls", 0) or 0,
+                "allpro":    row.get("allpro", 0) or 0,
+                "hof":       bool(row.get("hof", False)),
+            }
+
+    return player_info, draft_info
+
+nfl_player_info, nfl_draft_info = build_nfl_lookups()
+
+NFL_STAT_MAP = {
+    "passing_yards":   "Passing Yards",
+    "passing_tds":     "Passing TDs",
+    "rushing_yards":   "Rushing Yards",
+    "rushing_tds":     "Rushing TDs",
+    "receptions":      "Receptions",
+    "receiving_yards": "Receiving Yards",
+    "receiving_tds":   "Receiving TDs",
+    "interceptions":   "Interceptions Thrown",
+    "sacks":           "Sacks Taken",
+    "fantasy_points_ppr": "PPR Fantasy Points",
+}
+
+# Position groups for difficulty tiers
+QB_POSITIONS  = {"QB"}
+SKILL_POSITIONS = {"WR", "RB", "TE", "FB"}
+ALL_POSITIONS   = QB_POSITIONS | SKILL_POSITIONS | {"K", "P", "OL", "DL", "LB", "CB", "S", "DB", "DE", "DT"}
+
 # ---------------------------------------------------------------------------
 # Page routes
 # ---------------------------------------------------------------------------
@@ -187,7 +295,6 @@ STAT_MAP = {
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
-
 @app.get("/guess", response_class=HTMLResponse)
 async def guess_page(
     request: Request,
@@ -195,107 +302,88 @@ async def guess_page(
     end_season: int = Query(...),
     types: str = Query("all"),
 ):
-    return templates.TemplateResponse(
-        request,
-        "guess.html",
-        {
-            "start_season": start_season,
-            "end_season": end_season,
-            "types": types.split(",") if types else ["all"],
-        },
-    )
+    return templates.TemplateResponse(request, "guess.html", {
+        "start_season": start_season,
+        "end_season": end_season,
+        "types": types.split(",") if types else ["all"],
+    })
 
+@app.get("/nfl_guess", response_class=HTMLResponse)
+async def nfl_guess_page(
+    request: Request,
+    start_season: int = Query(1999),
+    end_season: int = Query(2024),
+    types: str = Query("qb"),
+):
+    return templates.TemplateResponse(request, "nfl_guess.html", {
+        "start_season": start_season,
+        "end_season": end_season,
+        "types": types,
+    })
 
 @app.get("/spin", response_class=HTMLResponse)
 async def spin_page(request: Request):
     return templates.TemplateResponse(request, "spin.html")
 
+@app.get("/nfl_spin", response_class=HTMLResponse)
+async def nfl_spin_page(request: Request):
+    return templates.TemplateResponse(request, "nfl_spin.html")
+
 # ---------------------------------------------------------------------------
-# Leaderboard API routes
+# Leaderboard API
 # ---------------------------------------------------------------------------
 
 class ScorePayload(BaseModel):
     name: str
-    category: str   # e.g. "2000-2025_starters_3g"
-    streak: int     # current streak to compare against best
+    category: str
+    streak: int
 
 @app.get("/leaderboard")
 async def get_leaderboard(category: str = Query(...)):
-    """Return top 10 entries for a given category, sorted by best_streak desc then wins desc."""
-    category = category.strip()
     with get_db() as conn:
         rows = conn.execute(
-            """
-            SELECT name, wins, best_streak
-            FROM scores
-            WHERE category = ?
-            ORDER BY best_streak DESC, wins DESC
-            LIMIT 10
-            """,
-            (category,),
+            """SELECT name, wins, best_streak FROM scores
+               WHERE category = ?
+               ORDER BY best_streak DESC, wins DESC LIMIT 10""",
+            (category.strip(),),
         ).fetchall()
     return JSONResponse([dict(r) for r in rows])
 
-
 @app.post("/leaderboard")
 async def post_leaderboard(payload: ScorePayload):
-    """Upsert a win for (name, category). Increments wins, updates best_streak if higher."""
-    name     = payload.name.strip()[:20]   # cap at 20 chars
+    name     = payload.name.strip()[:20]
     category = payload.category.strip()
     streak   = max(0, int(payload.streak))
-
     if not name or not category:
-        return JSONResponse({"error": "name and category are required"}, status_code=400)
-
+        return JSONResponse({"error": "name and category required"}, status_code=400)
     with get_db() as conn:
-        # Check if row exists
         existing = conn.execute(
-            "SELECT wins, best_streak FROM scores WHERE name = ? AND category = ?",
+            "SELECT wins, best_streak FROM scores WHERE name=? AND category=?",
             (name, category),
         ).fetchone()
-
         if existing:
-            new_wins   = existing["wins"] + 1
-            new_streak = max(existing["best_streak"], streak)
             conn.execute(
-                """
-                UPDATE scores
-                SET wins = ?, best_streak = ?, updated_at = strftime('%s','now')
-                WHERE name = ? AND category = ?
-                """,
-                (new_wins, new_streak, name, category),
+                """UPDATE scores SET wins=?, best_streak=?, updated_at=strftime('%s','now')
+                   WHERE name=? AND category=?""",
+                (existing["wins"] + 1, max(existing["best_streak"], streak), name, category),
             )
         else:
             conn.execute(
-                """
-                INSERT INTO scores (name, category, wins, best_streak)
-                VALUES (?, ?, 1, ?)
-                """,
+                "INSERT INTO scores (name, category, wins, best_streak) VALUES (?,?,1,?)",
                 (name, category, streak),
             )
         conn.commit()
-
     return JSONResponse({"ok": True})
 
 # ---------------------------------------------------------------------------
-# Existing API routes (unchanged)
+# NBA API routes (unchanged)
 # ---------------------------------------------------------------------------
-
-@app.get("/debug_columns")
-async def debug_columns():
-    import math
-    safe = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
-            for k, v in stats_df.iloc[0].to_dict().items()} if not stats_df.empty else {}
-    return JSONResponse({"columns": stats_df.columns.tolist(), "sample_row": safe})
-
 
 @app.get("/all_players")
 async def all_players():
     if stats_df.empty:
         return JSONResponse({"error": "CSV data not loaded"}, status_code=500)
-    players = sorted(stats_df["player"].dropna().unique().tolist())
-    return players
-
+    return sorted(stats_df["player"].dropna().unique().tolist())
 
 @app.get("/random_player")
 async def random_player(
@@ -306,23 +394,18 @@ async def random_player(
     try:
         if stats_df.empty:
             return JSONResponse({"error": "Database is empty"}, status_code=500)
-
-        clean_types = types.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+        clean_types = types.replace("[","").replace("]","").replace("'","").replace('"',"")
         type_list = [t.strip() for t in clean_types.split(",")]
-
         mask = (stats_df["season"] >= start_season) & (stats_df["season"] <= end_season)
         pool = stats_df[mask]
-
         if pool.empty:
             return JSONResponse({"error": "No players in this year range"}, status_code=404)
-
         if "starters" in type_list or "all" in type_list:
             qual_rows = pool[(pool["g"] >= 58) & (pool["mp_per_game"] >= 30)]
-            qualifier  = qual_rows.groupby("player").size()
+            qualifier = qual_rows.groupby("player").size()
             starter_names = qualifier[qualifier >= 3].index.tolist()
         else:
             starter_names = []
-
         diff_mask = pd.Series(False, index=pool.index)
         if starter_names:
             diff_mask |= pool["player"].isin(starter_names)
@@ -330,11 +413,9 @@ async def random_player(
             diff_mask |= (pool["gs"] >= 5) & (pool["gs"] < 40)
         if "endbench" in type_list or "all" in type_list:
             diff_mask |= pool["gs"] < 5
-
         filtered = pool[diff_mask]
         if filtered.empty:
             filtered = pool
-
         if "starters" in type_list and starter_names and not ("bench" in type_list or "endbench" in type_list or "all" in type_list):
             eligible = [p for p in filtered["player"].unique() if p in starter_names]
             random_name = random.choice(eligible) if eligible else random.choice(filtered["player"].unique())
@@ -351,52 +432,37 @@ async def random_player(
                 if multi.any():
                     real_rows = szn_rows[~multi].copy()
                     if real_rows.empty:
-                        rows.append(szn_rows.iloc[0])
-                        continue
+                        rows.append(szn_rows.iloc[0]); continue
                     anchor = None
                     if i + 1 < len(seasons):
-                        next_szn = df[df["season"] == seasons[i + 1]]
-                        next_teams = next_szn[~next_szn["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
-                        if next_teams:
-                            anchor = next_teams[0]
+                        nxt = df[df["season"] == seasons[i+1]]
+                        nt  = nxt[~nxt["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
+                        if nt: anchor = nt[0]
                     if anchor is None and i > 0:
-                        prev_szn = df[df["season"] == seasons[i - 1]]
-                        prev_teams = prev_szn[~prev_szn["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
-                        if prev_teams:
-                            anchor = prev_teams[-1]
+                        prv = df[df["season"] == seasons[i-1]]
+                        pt  = prv[~prv["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
+                        if pt: anchor = pt[-1]
                     if anchor:
-                        anchor_rows = real_rows[real_rows["team"] == anchor]
-                        other_rows  = real_rows[real_rows["team"] != anchor]
-                        ordered = pd.concat([other_rows, anchor_rows])
+                        ordered = pd.concat([real_rows[real_rows["team"] != anchor], real_rows[real_rows["team"] == anchor]])
                     else:
                         ordered = real_rows
-                    for _, r in ordered.iterrows():
-                        rows.append(r)
+                    for _, r in ordered.iterrows(): rows.append(r)
                 else:
-                    for _, r in szn_rows.iterrows():
-                        rows.append(r)
-            result = pd.DataFrame(rows)
-            return result.sort_values("season", ascending=False)
+                    for _, r in szn_rows.iterrows(): rows.append(r)
+            return pd.DataFrame(rows).sort_values("season", ascending=False)
 
         career = normalize_career(career_raw)
-
-        import math
         raw_seasons = career.to_dict(orient="records")
-        clean_seasons = [
-            {k: (None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v)
-             for k, v in row.items()}
-            for row in raw_seasons
-        ]
+        clean_seasons = [{k: (None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v) for k, v in row.items()} for row in raw_seasons]
         player_id = career_raw["player_id"].iloc[0] if "player_id" in career_raw.columns else None
         info   = info_lookup.get(player_id, {})
         pick   = draft_lookup.get(player_id)
-        awards = awards_lookup.get(player_id, {})
-
+        awards = nba_awards_lookup.get(player_id, {})
         return JSONResponse({
             "player_name": random_name,
-            "height":      info.get("height"),
-            "hof":         info.get("hof", ""),
-            "draft_pick":  int(pick) if pick is not None else None,
+            "height":     info.get("height"),
+            "hof":        info.get("hof", ""),
+            "draft_pick": int(pick) if pick is not None else None,
             "awards": {
                 "mvp":          awards.get("nba most valuable player", 0),
                 "dpoy":         awards.get("nba defensive player of the year", 0),
@@ -407,86 +473,244 @@ async def random_player(
             },
             "seasons": clean_seasons,
         })
-
     except Exception as e:
-        print(f"CRASH LOG /random_player: {e}")
+        print(f"CRASH /random_player: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
+# ---------------------------------------------------------------------------
+# NFL API routes
+# ---------------------------------------------------------------------------
+
+@app.get("/nfl/all_players")
+async def nfl_all_players():
+    if nfl_stats_df.empty:
+        return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
+    players = sorted(nfl_stats_df["player_name"].dropna().unique().tolist())
+    return players
+
+@app.get("/nfl/random_player")
+async def nfl_random_player(
+    start_season: int = Query(1999),
+    end_season: int = Query(2024),
+    types: str = Query("qb"),   # qb | skill | all
+):
+    try:
+        if nfl_stats_df.empty:
+            return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
+
+        df = nfl_stats_df.copy()
+        mask = (df["season"] >= start_season) & (df["season"] <= end_season)
+        pool = df[mask]
+
+        if pool.empty:
+            return JSONResponse({"error": "No players in this season range"}, status_code=404)
+
+        t = types.lower().strip()
+        if t == "qb":
+            pool = pool[pool["position"] == "QB"]
+        elif t == "skill":
+            pool = pool[pool["position"].isin(SKILL_POSITIONS)]
+        # "all" = no position filter
+
+        if pool.empty:
+            return JSONResponse({"error": "No players match this position filter"}, status_code=404)
+
+        # Pick players with at least 1 season of meaningful production
+        # (QB: 100+ attempts; skill: 50+ touches/targets in a season)
+        if t == "qb":
+            qual = pool[pool["attempts"] >= 100]
+        elif t == "skill":
+            pool["touches"] = pool.get("carries", 0).fillna(0) + pool.get("targets", 0).fillna(0)
+            qual = pool[pool["touches"] >= 50]
+        else:
+            qual = pool[pool["fantasy_points_ppr"].fillna(0) >= 50]
+
+        eligible_pool = qual if not qual.empty else pool
+        random_name   = random.choice(eligible_pool["player_name"].unique().tolist())
+
+        # Full career (all seasons in DB, not just filtered range)
+        career = nfl_stats_df[nfl_stats_df["player_name"] == random_name].copy()
+        career = career.sort_values("season", ascending=False)
+
+        # Build per-season rows for the table
+        season_rows = []
+        for _, row in career.iterrows():
+            def g(col, default=None):
+                v = row.get(col, default)
+                if v is None: return default
+                if isinstance(v, float) and (math.isnan(v) or math.isinf(v)): return default
+                return v
+
+            season_rows.append({
+                "season":          g("season"),
+                "team":            g("recent_team"),
+                "position":        g("position"),
+                "passing_yards":   g("passing_yards"),
+                "passing_tds":     g("passing_tds"),
+                "interceptions":   g("interceptions"),
+                "attempts":        g("attempts"),
+                "completions":     g("completions"),
+                "carries":         g("carries"),
+                "rushing_yards":   g("rushing_yards"),
+                "rushing_tds":     g("rushing_tds"),
+                "receptions":      g("receptions"),
+                "targets":         g("targets"),
+                "receiving_yards": g("receiving_yards"),
+                "receiving_tds":   g("receiving_tds"),
+                "sacks":           g("sacks"),
+                "fantasy_points_ppr": g("fantasy_points_ppr"),
+            })
+
+        # Get player meta from lookup
+        gsis_id = career["player_id"].iloc[0] if "player_id" in career.columns else None
+        pinfo   = nfl_player_info.get(gsis_id, {})
+        dinfo   = nfl_draft_info.get(gsis_id, {})
+
+        return JSONResponse({
+            "player_name": random_name,
+            "position":    pinfo.get("position") or (career["position"].iloc[0] if "position" in career.columns else None),
+            "height":      pinfo.get("height"),
+            "college":     pinfo.get("college"),
+            "draft_pick":  dinfo.get("pick"),
+            "draft_round": dinfo.get("round"),
+            "awards": {
+                "probowls": int(dinfo.get("probowls", 0) or 0),
+                "allpro":   int(dinfo.get("allpro", 0) or 0),
+                "hof":      bool(dinfo.get("hof", False)),
+            },
+            "seasons": season_rows,
+        })
+    except Exception as e:
+        print(f"CRASH /nfl/random_player: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/nfl/spin_data")
+async def nfl_spin_data():
+    if nfl_stats_df.empty:
+        return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
+    try:
+        df = nfl_stats_df.copy()
+
+        # Pick a random available stat
+        available = [k for k in NFL_STAT_MAP if k in df.columns]
+        if not available:
+            return JSONResponse({"error": "No matching stat columns"}, status_code=500)
+
+        stat_key = random.choice(available)
+
+        # Pick a random season with enough qualifying players
+        seasons = df["season"].dropna().unique().tolist()
+        for _ in range(20):
+            chosen_season = random.choice(seasons)
+            szn = df[(df["season"] == chosen_season) & df[stat_key].notna()].copy()
+
+            # Minimum qualification thresholds per stat
+            if stat_key in ("passing_yards", "passing_tds", "interceptions", "sacks"):
+                szn = szn[szn.get("attempts", pd.Series(dtype=float)).fillna(0) >= 100]
+            elif stat_key in ("rushing_yards", "rushing_tds"):
+                szn = szn[szn.get("carries", pd.Series(dtype=float)).fillna(0) >= 50]
+            elif stat_key in ("receptions", "receiving_yards", "receiving_tds"):
+                szn = szn[szn.get("targets", pd.Series(dtype=float)).fillna(0) >= 30]
+            else:
+                szn = szn[szn[stat_key].fillna(0) > 0]
+
+            if not szn.empty:
+                break
+        else:
+            return JSONResponse({"error": "Could not find valid season/stat"}, status_code=500)
+
+        szn = szn.sort_values(stat_key, ascending=False)
+        leader = szn.iloc[0]
+
+        # Conference
+        team = str(leader.get("recent_team", "")).upper()
+        conf = NFL_TEAM_TO_CONF.get(team, "Unknown")
+        pos  = str(leader.get("position", "?"))
+
+        return JSONResponse({
+            "winner": leader["player_name"],
+            "clues": {
+                "stat_name": NFL_STAT_MAP[stat_key],
+                "stat_val":  str(round(float(leader[stat_key]), 0) if "." in str(leader[stat_key]) else int(leader[stat_key])),
+                "season":    str(int(chosen_season)),
+                "pos":       pos,
+                "conf":      conf,
+            },
+        })
+    except Exception as e:
+        print(f"CRASH /nfl/spin_data: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+# ---------------------------------------------------------------------------
+# NBA spin (unchanged)
+# ---------------------------------------------------------------------------
 
 @app.get("/spin_data")
 async def spin_data():
     if stats_df.empty:
         return JSONResponse({"error": "No data"}, status_code=500)
-
     try:
-        available_stat_keys = [k for k in STAT_MAP if k in stats_df.columns]
+        available_stat_keys = [k for k in NBA_STAT_MAP if k in stats_df.columns]
         if not available_stat_keys:
-            return JSONResponse({"error": "No matching stat columns found in CSV"}, status_code=500)
-
+            return JSONResponse({"error": "No matching stat columns"}, status_code=500)
         chosen_stat_key = random.choice(available_stat_keys)
-
         def dedup_season(df):
             counts = df.groupby("player")["player"].transform("count")
             return df[(counts == 1) | (df["team"].str.match(r"\d+TM"))]
-
         nba_seasons = stats_df[stats_df["lg"] == "NBA"]["season"].unique().tolist()
-
         for _ in range(20):
             chosen_season = random.choice(nba_seasons)
-            season_df = stats_df[
-                (stats_df["season"] == chosen_season) &
-                (stats_df["lg"] == "NBA") &
-                (stats_df["g"] >= 41) &
-                stats_df[chosen_stat_key].notna()
-            ].copy()
+            season_df = stats_df[(stats_df["season"] == chosen_season) & (stats_df["lg"] == "NBA") & (stats_df["g"] >= 41) & stats_df[chosen_stat_key].notna()].copy()
             season_df = dedup_season(season_df)
-            if not season_df.empty:
-                break
+            if not season_df.empty: break
         else:
-            return JSONResponse({"error": "Could not find valid season/stat combination"}, status_code=500)
-
-        season_df = season_df.sort_values(by=chosen_stat_key, ascending=False)
-        leader_row = season_df.iloc[0]
-
-        stat_val = float(leader_row[chosen_stat_key])
+            return JSONResponse({"error": "Could not find valid season"}, status_code=500)
+        season_df   = season_df.sort_values(by=chosen_stat_key, ascending=False)
+        leader_row  = season_df.iloc[0]
+        stat_val    = float(leader_row[chosen_stat_key])
         team_abbrev = str(leader_row.get("team", "")).upper()
-
         if re.match(r"\d+TM", team_abbrev):
-            player_rows = stats_df[
-                (stats_df["player"] == leader_row["player"]) &
-                (stats_df["season"] == chosen_season) &
-                (~stats_df["team"].str.match(r"\d+TM", na=False))
-            ].copy()
-            if not player_rows.empty:
-                team_abbrev = player_rows.sort_values("g", ascending=False).iloc[0]["team"].upper()
-
-        conf = TEAM_TO_CONF.get(team_abbrev, "")
+            pr = stats_df[(stats_df["player"] == leader_row["player"]) & (stats_df["season"] == chosen_season) & (~stats_df["team"].str.match(r"\d+TM", na=False))].copy()
+            if not pr.empty:
+                team_abbrev = pr.sort_values("g", ascending=False).iloc[0]["team"].upper()
+        conf = TEAM_TO_CONF_NBA.get(team_abbrev, "")
         if not conf:
-            player_teams = stats_df[
-                (stats_df["player"] == leader_row["player"]) &
-                (stats_df["season"] == chosen_season) &
-                (~stats_df["team"].str.match(r"\d+TM", na=False))
-            ]["team"].tolist()
-            for t in player_teams:
-                c = TEAM_TO_CONF.get(t.upper(), "")
-                if c:
-                    conf = c
-                    team_abbrev = t.upper()
-                    break
-
-        print(f"SPIN: {leader_row['player']} | {STAT_MAP[chosen_stat_key]}: {stat_val} | {chosen_season} | {team_abbrev} ({conf})")
-
+            for t in stats_df[(stats_df["player"] == leader_row["player"]) & (stats_df["season"] == chosen_season) & (~stats_df["team"].str.match(r"\d+TM", na=False))]["team"].tolist():
+                c = TEAM_TO_CONF_NBA.get(t.upper(), "")
+                if c: conf = c; team_abbrev = t.upper(); break
         return JSONResponse({
             "winner": leader_row["player"],
             "clues": {
-                "stat_name": STAT_MAP[chosen_stat_key],
-                "stat_val": str(round(stat_val, 1)),
-                "season": str(chosen_season),
-                "pos": leader_row.get("pos", "N/A"),
-                "conf": conf if conf else "Unknown",
+                "stat_name": NBA_STAT_MAP[chosen_stat_key],
+                "stat_val":  str(round(stat_val, 1)),
+                "season":    str(chosen_season),
+                "pos":       leader_row.get("pos", "N/A"),
+                "conf":      conf if conf else "Unknown",
             },
         })
-
     except Exception as e:
-        print(f"CRASH LOG /spin_data: {e}")
+        print(f"CRASH /spin_data: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+# ---------------------------------------------------------------------------
+# NFL conference map
+# ---------------------------------------------------------------------------
+
+NFL_TEAM_TO_CONF = {
+    # AFC
+    "BAL":"AFC","BUF":"AFC","CIN":"AFC","CLE":"AFC",
+    "DEN":"AFC","HOU":"AFC","IND":"AFC","JAX":"AFC","JAC":"AFC",
+    "KC":"AFC","LV":"AFC","OAK":"AFC","LAC":"AFC","SD":"AFC",
+    "MIA":"AFC","NE":"AFC","NYJ":"AFC","PIT":"AFC","TEN":"AFC","OTI":"AFC",
+    # NFC
+    "DAL":"NFC","NYG":"NFC","PHI":"NFC","WAS":"NFC","WFT":"NFC",
+    "CHI":"NFC","DET":"NFC","GB":"NFC","MIN":"NFC",
+    "ATL":"NFC","CAR":"NFC","NO":"NFC","TB":"NFC",
+    "ARI":"NFC","LA":"NFC","LAR":"NFC","SF":"NFC","SEA":"NFC",
+}
+
+@app.get("/debug_columns")
+async def debug_columns():
+    safe = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
+            for k, v in stats_df.iloc[0].to_dict().items()} if not stats_df.empty else {}
+    return JSONResponse({"columns": stats_df.columns.tolist(), "sample_row": safe})
