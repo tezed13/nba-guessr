@@ -4,4 +4,4 @@ pandas
 jinja2
 python-multipart
 gunicorn
-nflreadpy==0.1.5
+nflreadpy
