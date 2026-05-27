@@ -155,6 +155,13 @@
     .launch-btn:hover  { filter: brightness(1.1); }
     .launch-btn:active { transform: scale(0.98); }
 
+    .era-chip {
+      padding: 7px 14px; border-radius: 8px; border: 1.5px solid #27272a;
+      background: transparent; color: #52525b; font-family: inherit;
+      font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+    }
+    .era-chip:hover:not(.on) { border-color: #3f3f46; color: #a1a1aa; }
+
     footer {
       text-align: center; padding-bottom: 32px;
       font-size: 11px; color: #27272a; font-weight: 700;
@@ -283,6 +290,10 @@
     <div class="diff-cards" id="diff-cards"></div>
 
     <div class="diff-footer">
+      <div id="era-section" style="display:none;margin-bottom:20px">
+        <div class="guesses-label">Era</div>
+        <div id="era-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
       <div class="guesses-label">Max Guesses</div>
       <div class="guess-btns" id="guess-btns">
         <button class="gbtn" data-val="1" onclick="setGuess(this)">1</button>
@@ -298,8 +309,56 @@
   <script>
     // ── State ─────────────────────────────────────────────────────
     let activeSport    = 'nba';
+    let selectedEras   = [];
+
+    function toggleEra(btn, idx, accent) {
+      const eras = window._currentEras;
+      const allTimeIdx = eras.length - 1;
+
+      // If clicking All Time, deselect everything else
+      if (idx === allTimeIdx) {
+        selectedEras = [eras[allTimeIdx]];
+        document.querySelectorAll('.era-chip').forEach((b, i) => {
+          const on = i === allTimeIdx;
+          b.classList.toggle('on', on);
+          b.style.background   = on ? `${accent}22` : '';
+          b.style.borderColor  = on ? accent : '';
+          b.style.color        = on ? accent : '';
+        });
+        return;
+      }
+
+      // Toggle this era
+      const era = eras[idx];
+      const alreadyOn = selectedEras.some(e => e.label === era.label);
+      if (alreadyOn) {
+        selectedEras = selectedEras.filter(e => e.label !== era.label);
+      } else {
+        // Deselect All Time if it was on
+        selectedEras = selectedEras.filter(e => e.label !== eras[allTimeIdx].label);
+        selectedEras.push(era);
+      }
+      // Must have at least one selected
+      if (selectedEras.length === 0) selectedEras = [era];
+
+      // Re-render chips
+      document.querySelectorAll('.era-chip').forEach((b, i) => {
+        const on = selectedEras.some(e => e.label === eras[i].label);
+        b.classList.toggle('on', on);
+        b.style.background   = on ? `${accent}22` : '';
+        b.style.borderColor  = on ? accent : '';
+        b.style.color        = on ? accent : '';
+      });
+    }
+
+    function getSeasonRange() {
+      if (!selectedEras.length) return { start: 1980, end: 2026 };
+      const start = Math.min(...selectedEras.map(e => e.start));
+      const end   = Math.max(...selectedEras.map(e => e.end));
+      return { start, end };
+    }
     let selectedPool   = 'starters';
-    let selectedGuesses = 3;
+    let selectedGuesses = 2;
 
     // ── Streaks ───────────────────────────────────────────────────
     const STREAK_MAP = {
@@ -345,7 +404,7 @@
       const accent  = isNfl ? '#ef4444' : '#3b82f6';
       const bgSel   = isNfl ? '#1c0000' : '#0c1629';
       const defPool = diffs[0].val;
-      const defG    = isNfl ? 3 : 1;
+      const defG    = isNfl ? 2 : 2;
 
       selectedPool    = defPool;
       selectedGuesses = defG;
@@ -383,6 +442,40 @@
       lb.style.color      = '#fff';
 
       // Switch screens
+      // ── Era chips ──
+      const NBA_ERAS = [
+        { label:'80s',      start:1980, end:1989 },
+        { label:'90s',      start:1990, end:1999 },
+        { label:'2000s',    start:2000, end:2009 },
+        { label:'2010s',    start:2010, end:2019 },
+        { label:'2020s',    start:2020, end:2026 },
+        { label:'All Time', start:1980, end:2026 },
+      ];
+      const NFL_ERAS = [
+        { label:'2000s',    start:1999, end:2009 },
+        { label:'2010s',    start:2010, end:2019 },
+        { label:'2020s',    start:2020, end:2024 },
+        { label:'All Time', start:1999, end:2024 },
+      ];
+
+      const eras      = isNfl ? NFL_ERAS : NBA_ERAS;
+      const eraAccent = accent;
+      const eraSection = document.getElementById('era-section');
+      const eraChips   = document.getElementById('era-chips');
+
+      // Default: All Time selected
+      selectedEras = [eras[eras.length - 1]];
+
+      eraSection.style.display = 'block';
+      eraChips.innerHTML = eras.map((e, i) => {
+        const isDefault = i === eras.length - 1;
+        return `<button class="era-chip${isDefault ? ' on' : ''}"
+          data-idx="${i}"
+          style="${isDefault ? `background:${eraAccent}22;border-color:${eraAccent};color:${eraAccent}` : ''}"
+          onclick="toggleEra(this,${i},'${eraAccent}')">${e.label}</button>`;
+      }).join('');
+      window._currentEras = eras;
+
       document.getElementById('home').classList.remove('show');
       document.getElementById('diff-screen').classList.add('show');
     }
@@ -417,10 +510,11 @@
     }
 
     function launchGame() {
+      const { start, end } = getSeasonRange();
       if (activeSport === 'nba') {
-        window.location.href = `/guess?start_season=2000&end_season=2026&types=${selectedPool}&max_guesses=${selectedGuesses}`;
+        window.location.href = `/guess?start_season=${start}&end_season=${end}&types=${selectedPool}&max_guesses=${selectedGuesses}`;
       } else {
-        window.location.href = `/nfl_guess?start_season=1999&end_season=2024&types=${selectedPool}&max_guesses=${selectedGuesses}`;
+        window.location.href = `/nfl_guess?start_season=${start}&end_season=${end}&types=${selectedPool}&max_guesses=${selectedGuesses}`;
       }
     }
   </script>

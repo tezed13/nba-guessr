@@ -285,6 +285,15 @@
         .skeleton { animation: pulse 1.2s ease-in-out infinite; background: #18181b; border-radius: 4px; display: inline-block; width: 100%; height: 14px; }
 
         /* Score pulse on new entry */
+        .era-chip-game {
+            padding: 3px 9px; border-radius: 6px; border: 1.5px solid #27272a;
+            background: transparent; color: #52525b; font-family: inherit;
+            font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+            letter-spacing: 0.04em;
+        }
+        .era-chip-game.on { border-color: #3b82f6; background: #0c1629; color: #93c5fd; }
+        .era-chip-game:hover:not(.on) { border-color: #3f3f46; color: #a1a1aa; }
+
         @keyframes scorePop {
             0%   { transform: scale(1); }
             40%  { transform: scale(1.18); color: #4ade80; }
@@ -353,7 +362,7 @@
             <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Home</a>
             <div style="text-align:center">
                 <div style="font-size:16px;font-weight:900;letter-spacing:0.03em">NBA GUESSR</div>
-                <div id="rangeLabel" style="font-size:11px;color:#52525b;font-weight:600;margin-top:2px">{{ start_season }} – {{ end_season }}</div>
+                <div id="eraChips" style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-top:4px"></div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
                 <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
@@ -584,14 +593,73 @@
     const urlParams = new URLSearchParams(window.location.search);
     let maxGuesses = parseInt(urlParams.get('max_guesses') || '1');
 
-    let activeSeason = {
-        start: parseInt(document.getElementById('startSeason').value),
-        end:   parseInt(document.getElementById('endSeason').value)
-    };
+    // Era definitions matching index.html
+    const NBA_ERAS = [
+        { label:'80s',      start:1980, end:1989 },
+        { label:'90s',      start:1990, end:1999 },
+        { label:'2000s',    start:2000, end:2009 },
+        { label:'2010s',    start:2010, end:2019 },
+        { label:'2020s',    start:2020, end:2026 },
+        { label:'All Time', start:1980, end:2026 },
+    ];
+
+    // Derive initial selected eras from URL params
+    const _urlStart = parseInt(document.getElementById('startSeason').value);
+    const _urlEnd   = parseInt(document.getElementById('endSeason').value);
+
+    function eraFromRange(start, end) {
+        // Find matching era(s) — if it spans everything, select All Time
+        if (start <= 1980 && end >= 2026) return [NBA_ERAS[NBA_ERAS.length - 1]];
+        return NBA_ERAS.filter(e => e.start >= start && e.end <= end && e.label !== 'All Time');
+    }
+
+    let selectedEras = eraFromRange(_urlStart, _urlEnd);
+    if (!selectedEras.length) selectedEras = [NBA_ERAS[NBA_ERAS.length - 1]];
+
+    function getActiveSeason() {
+        const start = Math.min(...selectedEras.map(e => e.start));
+        const end   = Math.max(...selectedEras.map(e => e.end));
+        return { start, end };
+    }
+
+    let activeSeason = getActiveSeason();
+
+    function buildEraChips() {
+        const chips = document.getElementById('eraChips');
+        if (!chips) return;
+        chips.innerHTML = NBA_ERAS.map((era, i) => {
+            const on = selectedEras.some(e => e.label === era.label);
+            return `<button class="era-chip-game${on ? ' on' : ''}" data-idx="${i}">${era.label}</button>`;
+        }).join('');
+        chips.querySelectorAll('.era-chip-game').forEach((btn, i) => {
+            btn.addEventListener('click', () => toggleEraGame(i));
+        });
+    }
+
+    function toggleEraGame(idx) {
+        const allTimeIdx = NBA_ERAS.length - 1;
+        if (idx === allTimeIdx) {
+            selectedEras = [NBA_ERAS[allTimeIdx]];
+        } else {
+            const era = NBA_ERAS[idx];
+            const on  = selectedEras.some(e => e.label === era.label);
+            if (on) {
+                selectedEras = selectedEras.filter(e => e.label !== era.label);
+            } else {
+                selectedEras = selectedEras.filter(e => e.label !== NBA_ERAS[allTimeIdx].label);
+                selectedEras.push(era);
+            }
+            if (!selectedEras.length) selectedEras = [era];
+        }
+        activeSeason = getActiveSeason();
+        buildEraChips();
+        loadPlayer();
+    }
     let activeTypes = document.getElementById('types').value.replace(/[\[\]'"]/g, '').trim();
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('streakVal').textContent = streak;
+        buildEraChips();
     });
 
     fetch('/all_players').then(r => r.json()).then(d => allPlayers = d);
