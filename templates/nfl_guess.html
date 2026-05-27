@@ -218,6 +218,7 @@
             </div>
             <div style="display:flex;gap:10px">
                 <button id="submitBtn" class="btn btn-red" style="flex:1">Submit Guess</button>
+                <button id="giveUpBtn" class="btn btn-dim" style="flex:0 0 auto;padding:12px 14px">Give Up</button>
                 <button id="nextBtn" class="btn btn-dim" style="flex:1;display:none">Next Player →</button>
             </div>
         </div>
@@ -440,6 +441,10 @@
         document.getElementById('suggestions').classList.add('hidden');
         hideBanner();
         document.getElementById('submitBtn').style.display='block';
+        document.getElementById('giveUpBtn').style.display='block';
+        document.getElementById('giveUpBtn').textContent='Give Up';
+        document.getElementById('giveUpBtn').style.background='';
+        document.getElementById('giveUpBtn').style.color='';
         document.getElementById('nextBtn').style.display='none';
         buildDots();
         buildTableHeaders(activeTypes);
@@ -542,10 +547,14 @@
     function endRound(won) {
         roundOver=true;
         document.getElementById('submitBtn').style.display='none';
+        document.getElementById('giveUpBtn').style.display='none';
         document.getElementById('nextBtn').style.display='block';
         document.getElementById('guessInput').value='';
         document.getElementById('suggestions').classList.add('hidden');
-        if (!won) setTimeout(()=>openLB(false),600);
+        // Only show leaderboard on loss if streak qualifies for top 10
+        if (!won && streak > 0) {
+            setTimeout(() => maybeOpenLB(), 600);
+        }
     }
 
     // ── Autocomplete ─────────────────────────────────────────────
@@ -590,6 +599,65 @@
     document.addEventListener('click',e=>{
         if(!e.target.closest('#guessInput')&&!e.target.closest('#suggestions')) suggs.classList.add('hidden');
     });
+
+    // ── Give up ──────────────────────────────────────────────
+    let giveUpPrimed = false;
+
+    document.getElementById('giveUpBtn').addEventListener('click', () => {
+        if (roundOver || !currentPlayerName) return;
+        if (!giveUpPrimed) {
+            // First click — ask for confirmation
+            giveUpPrimed = true;
+            const btn = document.getElementById('giveUpBtn');
+            btn.textContent  = 'Sure?';
+            btn.style.background = '#7f1d1d';
+            btn.style.color      = '#f87171';
+            // Auto-reset after 3s if they don't confirm
+            setTimeout(() => {
+                if (giveUpPrimed) {
+                    giveUpPrimed = false;
+                    btn.textContent  = 'Give Up';
+                    btn.style.background = '';
+                    btn.style.color      = '';
+                }
+            }, 3000);
+        } else {
+            // Second click — confirmed give up
+            giveUpPrimed = false;
+            streak = 0;
+            localStorage.setItem('nfl_guessr_cur', 0);
+            document.getElementById('streakVal').textContent = 0;
+            document.getElementById('playerNameDisplay').textContent = currentPlayerName;
+            document.getElementById('playerNameDisplay').style.color = '#f87171';
+            showBanner(`🏳️ ${currentPlayerName} — you gave up. Best: ${bestStreak}`, 'err');
+            endRound(false);
+        }
+    });
+
+    // Reset give-up state if they start typing again
+    document.getElementById('guessInput').addEventListener('input', () => {
+        if (giveUpPrimed) {
+            giveUpPrimed = false;
+            const btn = document.getElementById('giveUpBtn');
+            btn.textContent  = 'Give Up';
+            btn.style.background = '';
+            btn.style.color      = '';
+        }
+    });
+
+    // ── Leaderboard eligibility check ───────────────────────
+    async function maybeOpenLB() {
+        const catKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
+        try {
+            const res     = await fetch(`/leaderboard?category=${encodeURIComponent(catKey)}`);
+            const entries = await res.json();
+            // Qualify if fewer than 10 entries OR streak beats the lowest entry
+            const qualifies = entries.length < 10 || streak > entries[entries.length - 1].best_streak;
+            if (qualifies) openLB(false);
+        } catch (e) {
+            // On fetch error just skip — don't block the game
+        }
+    }
 
     // ── Init ─────────────────────────────────────────────────────
     document.getElementById('nextBtn').addEventListener('click', loadPlayer);
