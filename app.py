@@ -735,6 +735,49 @@ NFL_TEAM_TO_CONF = {
     "ARI":"NFC","LA":"NFC","LAR":"NFC","SF":"NFC","SEA":"NFC",
 }
 
+
+@app.get("/nfl/debug_names")
+async def nfl_debug_names():
+    """Temporary debug route — remove after fixing name issue."""
+    if nfl_players_df.empty:
+        return JSONResponse({"error": "players df empty"})
+    if nfl_stats_df.empty:
+        return JSONResponse({"error": "stats df empty"})
+
+    # Show all column names in both tables
+    player_cols = nfl_players_df.columns.tolist()
+    stats_cols  = nfl_stats_df.columns.tolist()
+
+    # Show a few sample rows from players table
+    sample_players = nfl_players_df.head(5).to_dict(orient="records")
+    # Sanitise for JSON
+    import math
+    def clean(v):
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)): return None
+        return v
+    sample_players = [{k: clean(v) for k,v in row.items()} for row in sample_players]
+
+    # Show what Peyton Manning looks like in stats
+    peyton_stats = nfl_stats_df[
+        nfl_stats_df["player_name"].str.contains("Manning", case=False, na=False)
+    ].head(3).to_dict(orient="records")
+    peyton_stats = [{k: clean(v) for k,v in row.items()} for row in peyton_stats]
+
+    # Show what Manning looks like in players table
+    peyton_info = nfl_players_df[
+        nfl_players_df.apply(lambda r: any("Manning" in str(v) for v in r.values), axis=1)
+    ].head(3).to_dict(orient="records")
+    peyton_info = [{k: clean(v) for k,v in row.items()} for row in peyton_info]
+
+    return JSONResponse({
+        "players_table_columns": player_cols,
+        "stats_table_columns":   stats_cols,
+        "sample_players_rows":   sample_players,
+        "manning_in_stats":      peyton_stats,
+        "manning_in_players":    peyton_info,
+        "name_map_sample":       dict(list(nfl_name_map.items())[:20]),
+    })
+
 @app.get("/debug_columns")
 async def debug_columns():
     safe = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
