@@ -248,9 +248,10 @@ def build_nfl_lookups():
             except:
                 h_str = None
             player_info[gid] = {
-                "height":   h_str,
-                "position": row.get("position") or row.get("position_group"),
-                "college":  row.get("college_name"),
+                "height":       h_str,
+                "position":     row.get("position") or row.get("position_group"),
+                "college":      row.get("college_name"),
+                "display_name": row.get("display_name") or row.get("player_name"),
             }
 
     if not nfl_draft_df.empty:
@@ -269,6 +270,24 @@ def build_nfl_lookups():
 
 nfl_player_info, nfl_draft_info = build_nfl_lookups()
 
+# short_name (e.g. "T.Brady") -> display_name (e.g. "Tom Brady")
+# Built from nfl_players_df which has both columns
+def build_nfl_name_map():
+    name_map = {}  # short_name -> display_name
+    if not nfl_players_df.empty:
+        for _, row in nfl_players_df.iterrows():
+            short   = row.get("short_name") or row.get("player_name")
+            display = row.get("display_name") or row.get("player_name")
+            if short and display:
+                name_map[str(short)] = str(display)
+    return name_map
+
+nfl_name_map = build_nfl_name_map()
+
+def expand_nfl_name(short_name: str) -> str:
+    """Convert T.Brady -> Tom Brady using the players table."""
+    return nfl_name_map.get(str(short_name), str(short_name))
+
 NFL_STAT_MAP = {
     "passing_yards":   "Passing Yards",
     "passing_tds":     "Passing TDs",
@@ -277,9 +296,8 @@ NFL_STAT_MAP = {
     "receptions":      "Receptions",
     "receiving_yards": "Receiving Yards",
     "receiving_tds":   "Receiving TDs",
-    "interceptions":   "Interceptions Thrown",
-    "sacks":           "Sacks Taken",
-    "fantasy_points_ppr": "PPR Fantasy Points",
+    "passing_interceptions": "Interceptions Thrown",
+    "sack_fumbles":          "Sacks",
 }
 
 # Position groups for difficulty tiers
@@ -342,9 +360,9 @@ class ScorePayload(BaseModel):
 async def get_leaderboard(category: str = Query(...)):
     with get_db() as conn:
         rows = conn.execute(
-            """SELECT name, wins, best_streak FROM scores
+            """SELECT name, best_streak FROM scores
                WHERE category = ?
-               ORDER BY best_streak DESC, wins DESC LIMIT 10""",
+               ORDER BY best_streak DESC LIMIT 10""",
             (category.strip(),),
         ).fetchall()
     return JSONResponse([dict(r) for r in rows])
@@ -358,14 +376,14 @@ async def post_leaderboard(payload: ScorePayload):
         return JSONResponse({"error": "name and category required"}, status_code=400)
     with get_db() as conn:
         existing = conn.execute(
-            "SELECT wins, best_streak FROM scores WHERE name=? AND category=?",
+            "SELECT best_streak FROM scores WHERE name=? AND category=?",
             (name, category),
         ).fetchone()
         if existing:
             conn.execute(
-                """UPDATE scores SET wins=?, best_streak=?, updated_at=strftime('%s','now')
+                """UPDATE scores SET best_streak=?, updated_at=strftime('%s','now')
                    WHERE name=? AND category=?""",
-                (existing["wins"] + 1, max(existing["best_streak"], streak), name, category),
+                (max(existing["best_streak"], streak), name, category),
             )
         else:
             conn.execute(
@@ -466,6 +484,9 @@ async def random_player(
             "awards": {
                 "mvp":          awards.get("nba most valuable player", 0),
                 "dpoy":         awards.get("nba defensive player of the year", 0),
+                "smoy":         awards.get("nba sixth man of the year", 0),
+                "mip":          awards.get("nba most improved player", 0),
+                "roy":          awards.get("nba rookie of the year", 0),
                 "allstar":      awards.get("allstar", 0),
                 "allnba":       awards.get("allnba", 0),
                 "allnba_first": awards.get("allnba_first", 0),
@@ -485,7 +506,8 @@ async def random_player(
 async def nfl_all_players():
     if nfl_stats_df.empty:
         return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
-    players = sorted(nfl_stats_df["player_name"].dropna().unique().tolist())
+    short_names = nfl_stats_df["player_name"].dropna().unique().tolist()
+    players = sorted(set(expand_nfl_name(n) for n in short_names))
     return players
 
 @app.get("/nfl/random_player")
@@ -515,21 +537,26 @@ async def nfl_random_player(
         if pool.empty:
             return JSONResponse({"error": "No players match this position filter"}, status_code=404)
 
-        # Pick players with at least 1 season of meaningful production
-        # (QB: 100+ attempts; skill: 50+ touches/targets in a season)
+        # Require at least 5 seasons in the filtered range
+        season_counts = pool.groupby("player_name")["season"].nunique()
+        five_plus     = season_counts[season_counts >= 5].index.tolist()
+
+        # Also require meaningful production in at least 1 season
         if t == "qb":
-            qual = pool[pool["attempts"] >= 100]
+            qual = pool[pool["player_name"].isin(five_plus) & (pool["attempts"] >= 100)]
         elif t == "skill":
-            pool["touches"] = pool.get("carries", 0).fillna(0) + pool.get("targets", 0).fillna(0)
-            qual = pool[pool["touches"] >= 50]
+            pool = pool.copy()
+            pool["touches"] = pool["carries"].fillna(0) + pool["targets"].fillna(0)
+            qual = pool[pool["player_name"].isin(five_plus) & (pool["touches"] >= 50)]
         else:
-            qual = pool[pool["fantasy_points_ppr"].fillna(0) >= 50]
+            qual = pool[pool["player_name"].isin(five_plus)]
 
         eligible_pool = qual if not qual.empty else pool
-        random_name   = random.choice(eligible_pool["player_name"].unique().tolist())
+        short_name  = random.choice(eligible_pool["player_name"].unique().tolist())
+        random_name = expand_nfl_name(short_name)
 
         # Full career (all seasons in DB, not just filtered range)
-        career = nfl_stats_df[nfl_stats_df["player_name"] == random_name].copy()
+        career = nfl_stats_df[nfl_stats_df["player_name"] == short_name].copy()
         career = career.sort_values("season", ascending=False)
 
         # Build per-season rows for the table
@@ -547,7 +574,7 @@ async def nfl_random_player(
                 "position":        g("position"),
                 "passing_yards":   g("passing_yards"),
                 "passing_tds":     g("passing_tds"),
-                "interceptions":   g("interceptions"),
+                "interceptions":   g("passing_interceptions"),
                 "attempts":        g("attempts"),
                 "completions":     g("completions"),
                 "carries":         g("carries"),
@@ -557,8 +584,7 @@ async def nfl_random_player(
                 "targets":         g("targets"),
                 "receiving_yards": g("receiving_yards"),
                 "receiving_tds":   g("receiving_tds"),
-                "sacks":           g("sacks"),
-                "fantasy_points_ppr": g("fantasy_points_ppr"),
+                "sacks":           g("sack_fumbles"),
             })
 
         # Get player meta from lookup
@@ -605,12 +631,12 @@ async def nfl_spin_data():
             szn = df[(df["season"] == chosen_season) & df[stat_key].notna()].copy()
 
             # Minimum qualification thresholds per stat
-            if stat_key in ("passing_yards", "passing_tds", "interceptions", "sacks"):
-                szn = szn[szn.get("attempts", pd.Series(dtype=float)).fillna(0) >= 100]
+            if stat_key in ("passing_yards", "passing_tds", "passing_interceptions", "sack_fumbles"):
+                szn = szn[szn["attempts"].fillna(0) >= 100]
             elif stat_key in ("rushing_yards", "rushing_tds"):
-                szn = szn[szn.get("carries", pd.Series(dtype=float)).fillna(0) >= 50]
+                szn = szn[szn["carries"].fillna(0) >= 50]
             elif stat_key in ("receptions", "receiving_yards", "receiving_tds"):
-                szn = szn[szn.get("targets", pd.Series(dtype=float)).fillna(0) >= 30]
+                szn = szn[szn["targets"].fillna(0) >= 30]
             else:
                 szn = szn[szn[stat_key].fillna(0) > 0]
 
@@ -628,7 +654,7 @@ async def nfl_spin_data():
         pos  = str(leader.get("position", "?"))
 
         return JSONResponse({
-            "winner": leader["player_name"],
+            "winner": expand_nfl_name(leader["player_name"]),
             "clues": {
                 "stat_name": NFL_STAT_MAP[stat_key],
                 "stat_val":  str(round(float(leader[stat_key]), 0) if "." in str(leader[stat_key]) else int(leader[stat_key])),
