@@ -3,138 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>NBA Spin</title>
+    <title>NBA Spin — Ball Knowledge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
         * { box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #0d0d0f; color: #fff; min-height: 100vh; }
 
-        /* Slot reel */
-        .reel-wrap {
-            height: 56px;
-            overflow: hidden;
-            position: relative;
-        }
-        .reel-track {
-            display: flex;
-            flex-direction: column;
-            transition: none;
-        }
-        .reel-track.spinning {
-            animation: spinReel 0.12s steps(1) infinite;
-        }
-        .reel-item {
-            height: 56px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: 900;
-            white-space: nowrap;
-            padding: 0 8px;
-        }
+        .reel-wrap { height: 56px; overflow: hidden; position: relative; }
+        .reel-track { display: flex; flex-direction: column; transition: none; }
+        .reel-item { height: 56px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; white-space: nowrap; padding: 0 8px; }
 
-        @keyframes spinReel {
-            0%   { transform: translateY(0); }
-            100% { transform: translateY(-56px); }
-        }
-
-        /* Slot card */
-        .slot-card {
-            background: #111113;
-            border: 1px solid #27272a;
-            border-radius: 16px;
-            padding: 14px 16px;
-            text-align: center;
-            transition: border-color 0.3s;
-        }
+        .slot-card { background: #111113; border: 1px solid #27272a; border-radius: 16px; padding: 14px 16px; text-align: center; transition: border-color 0.3s; }
         .slot-card.locked { border-color: #3b82f6; }
         .slot-card.locked-yellow { border-color: #eab308; }
-        .slot-label {
-            font-size: 10px;
-            font-weight: 700;
-            color: #52525b;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 6px;
-        }
+        .slot-label { font-size: 10px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
 
-        /* Clue cards (pos/conf) */
-        .clue-card {
-            background: #111113;
-            border: 1px solid #27272a;
-            border-radius: 16px;
-            padding: 14px 16px;
-            text-align: center;
-            transition: all 0.35s ease;
-        }
-        .clue-label {
-            font-size: 10px; font-weight: 700; color: #52525b;
-            text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;
-        }
-        .clue-val {
-            font-size: 20px; font-weight: 900; color: #fff;
-        }
-        .blurred { filter: blur(7px); opacity: 0.25; user-select: none; }
-        .unblurred { filter: none; opacity: 1; }
+        .clue-card { background: #111113; border: 1px solid #27272a; border-radius: 16px; padding: 14px 16px; text-align: center; transition: all 0.35s ease; }
+        .clue-label { font-size: 10px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+        .clue-val { font-size: 20px; font-weight: 900; color: #fff; }
 
-        /* Input */
-        .dark-input {
-            background: #18181b; border: 1.5px solid #27272a; border-radius: 10px;
-            color: #fff; font-size: 15px; font-weight: 600; padding: 13px 16px;
-            width: 100%; outline: none; transition: border-color 0.2s; font-family: inherit;
-        }
+        .dark-input { background: #18181b; border: 1.5px solid #27272a; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; padding: 13px 16px; width: 100%; outline: none; transition: border-color 0.2s; font-family: inherit; }
         .dark-input:focus { border-color: #eab308; }
         .dark-input::placeholder { color: #3f3f46; }
         .dark-input:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        /* Suggestions */
-        #suggestions {
-            position: absolute; z-index: 30; width: 100%;
-            background: #18181b; border: 1.5px solid #27272a;
-            border-radius: 10px;
-            bottom: calc(100% + 6px); top: auto;
-            overflow-y: auto; max-height: 320px;
-        }
-        .sug-item {
-            padding: 11px 16px; font-size: 14px; font-weight: 600;
-            color: #d4d4d8; cursor: pointer; border-bottom: 1px solid #27272a;
-            transition: background 0.1s;
-        }
+        #suggestions { position: absolute; z-index: 30; width: 100%; background: #18181b; border: 1.5px solid #27272a; border-radius: 10px; bottom: calc(100% + 6px); top: auto; overflow-y: auto; max-height: 320px; }
+        .sug-item { padding: 11px 16px; font-size: 14px; font-weight: 600; color: #d4d4d8; cursor: pointer; border-bottom: 1px solid #27272a; }
         .sug-item:last-child { border-bottom: none; }
         .sug-item:hover { background: #eab308; color: #000; }
 
-        /* Buttons */
-        .btn { border: none; border-radius: 10px; font-family: inherit; font-weight: 900;
-               font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase;
-               cursor: pointer; padding: 13px 16px; transition: background 0.15s, transform 0.1s; }
+        .btn { border: none; border-radius: 10px; font-family: inherit; font-weight: 900; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; padding: 13px 16px; transition: background 0.15s, transform 0.1s; }
         .btn:active { transform: scale(0.97); }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-yellow { background: #eab308; color: #000; }
         .btn-yellow:hover:not(:disabled) { background: #facc15; }
         .btn-blue { background: #3b82f6; color: #fff; }
         .btn-blue:hover { background: #2563eb; }
-        .btn-reveal { background: #27272a; color: #a1a1aa; font-size: 12px; padding: 8px 14px; }
-        .btn-reveal:hover { background: #3f3f46; color: #fff; }
 
         .banner { border-radius: 10px; padding: 12px 16px; font-weight: 800; font-size: 14px; text-align: center; }
         .banner-ok  { background: #052e16; border: 1px solid #166534; color: #4ade80; }
         .banner-err { background: #450a0a; border: 1px solid #991b1b; color: #f87171; }
 
-        .streak-pill {
-            background: #18181b; border: 1px solid #27272a;
-            border-radius: 999px; padding: 6px 18px;
-            font-size: 13px; font-weight: 700; color: #52525b;
-            display: inline-flex; align-items: center; gap: 8px;
-        }
+        .streak-pill { background: #18181b; border: 1px solid #27272a; border-radius: 999px; padding: 6px 18px; font-size: 13px; font-weight: 700; color: #52525b; display: inline-flex; align-items: center; gap: 8px; }
         .streak-pill .num { color: #eab308; font-size: 18px; font-weight: 900; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-5">
 
     <nav class="w-full max-w-xl mb-5 text-left">
-        <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Menu</a>
+        <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Home</a>
     </nav>
 
     <h1 style="font-size:36px;font-weight:900;font-style:italic;letter-spacing:-0.02em;margin-bottom:4px;
@@ -145,65 +63,46 @@
         Guess the season stat leader
     </p>
 
-    <!-- Slot machines: Category + Value + Season -->
     <div style="display:grid;grid-template-columns:1fr 80px 1fr;gap:10px;width:100%;max-width:560px;margin-bottom:14px">
-
-        <!-- Category slot -->
         <div class="slot-card" id="card-cat">
             <div class="slot-label">Category</div>
             <div class="reel-wrap">
-                <div class="reel-track" id="reel-cat">
-                    <div class="reel-item" style="color:#eab308">—</div>
-                </div>
+                <div class="reel-track" id="reel-cat"><div class="reel-item" style="color:#eab308">—</div></div>
             </div>
         </div>
-
-        <!-- Value (no spin, just revealed after category locks) -->
         <div class="slot-card" id="card-val" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
             <div class="slot-label">Value</div>
             <div id="val-display" style="font-size:22px;font-weight:900;color:#eab308;min-height:34px;display:flex;align-items:center">—</div>
         </div>
-
-        <!-- Season slot -->
         <div class="slot-card" id="card-season">
             <div class="slot-label">Season</div>
             <div class="reel-wrap">
-                <div class="reel-track" id="reel-season">
-                    <div class="reel-item" style="color:#fff">—</div>
-                </div>
+                <div class="reel-track" id="reel-season"><div class="reel-item" style="color:#fff">—</div></div>
             </div>
         </div>
     </div>
 
-    <!-- Pos + Conf clue cards -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:560px;margin-bottom:14px">
         <div class="clue-card">
             <div class="clue-label">Position</div>
-            <div class="clue-val unblurred" id="clue-pos">—</div>
+            <div class="clue-val" id="clue-pos">—</div>
         </div>
         <div class="clue-card">
             <div class="clue-label">Conference</div>
-            <div class="clue-val unblurred" id="clue-conf">—</div>
+            <div class="clue-val" id="clue-conf">—</div>
         </div>
     </div>
 
-
-
-    <!-- Guess panel -->
     <div style="width:100%;max-width:560px;background:#111113;border:1px solid #27272a;border-radius:20px;padding:20px">
-
         <div style="position:relative;margin-bottom:12px">
             <input type="text" id="guessInput" class="dark-input" placeholder="Name the player..." disabled>
             <div id="suggestions" class="hidden"></div>
         </div>
-
         <div id="resultBanner" class="banner" style="display:none;margin-bottom:12px"></div>
-
         <div style="display:flex;gap:10px">
             <button id="submitBtn" class="btn btn-yellow" style="flex:1" disabled>Submit</button>
             <button id="nextBtn" class="btn btn-blue" style="flex:1;display:none">Next Spin →</button>
         </div>
-
         <div style="margin-top:16px;text-align:center">
             <div class="streak-pill">🔥 Streak <span class="num" id="streakVal">0</span>
                 <span style="color:#3f3f46;font-size:11px;margin-left:4px">Best</span>
@@ -213,7 +112,6 @@
     </div>
 
     <script>
-        // ── Constants ─────────────────────────────────────────
         const CATEGORIES = [
             "Points Per Game","Rebounds Per Game","Assists Per Game",
             "Steals Per Game","Blocks Per Game","Turnovers Per Game",
@@ -221,41 +119,31 @@
             "3-Pointers Attempted Per Game","Shots Attempted Per Game",
             "Minutes Per Game"
         ];
-
-        // Build season list 1947–2025
         const SEASONS = [];
         for (let y = 1947; y <= 2025; y++) SEASONS.push(y);
 
-        // ── State ─────────────────────────────────────────────
         let currentWinner = "";
-        let streak    = parseInt(localStorage.getItem('spin_cur')  || '0');
-        let bestStreak= parseInt(localStorage.getItem('spin_best') || '0');
+        let streak     = parseInt(localStorage.getItem('spin_cur')  || '0');
+        let bestStreak = parseInt(localStorage.getItem('spin_best') || '0');
         let playerNames = [];
-        let isSpinning = false;
+        let isSpinning  = false;
 
         document.getElementById('streakVal').textContent = streak;
         document.getElementById('bestVal').textContent   = bestStreak;
 
         fetch("/all_players").then(r => r.json()).then(d => playerNames = d);
 
-        // ── Slot reel helper ──────────────────────────────────
-        // Rapidly swaps items in the reel track to simulate spinning
         function spinReel(trackId, items, durationMs, finalValue, color) {
             return new Promise(resolve => {
                 const track = document.getElementById(trackId);
-                let idx = 0;
-                const fps = 80; // ms per frame
                 let elapsed = 0;
-
+                const fps = 80;
                 const iv = setInterval(() => {
                     elapsed += fps;
-                    // Pick a random item to flash
                     const val = items[Math.floor(Math.random() * items.length)];
                     track.innerHTML = `<div class="reel-item" style="color:${color}">${val}</div>`;
-
                     if (elapsed >= durationMs) {
                         clearInterval(iv);
-                        // Land on the real value
                         track.innerHTML = `<div class="reel-item" style="color:${color};font-size:13px">${finalValue}</div>`;
                         resolve();
                     }
@@ -263,14 +151,6 @@
             });
         }
 
-        // ── Reveal clue ───────────────────────────────────────
-        function revealClue(id) {
-            const el = document.getElementById(id);
-            el.classList.remove('blurred');
-            el.classList.add('unblurred');
-        }
-
-        // ── Reset UI ──────────────────────────────────────────
         function resetUI() {
             currentWinner = "";
             document.getElementById('guessInput').value = "";
@@ -280,58 +160,42 @@
             document.getElementById('nextBtn').style.display = "none";
             document.getElementById('resultBanner').style.display = "none";
             document.getElementById('suggestions').classList.add('hidden');
-
-            // Reset slots
             document.getElementById('reel-cat').innerHTML    = `<div class="reel-item" style="color:#eab308">—</div>`;
             document.getElementById('val-display').textContent = "—";
             document.getElementById('reel-season').innerHTML = `<div class="reel-item" style="color:#fff">—</div>`;
-
-            // Reset card borders
             document.getElementById('card-cat').className    = 'slot-card';
             document.getElementById('card-val').className    = 'slot-card';
             document.getElementById('card-season').className = 'slot-card';
-
-            // Reset clue text
-            ['clue-pos','clue-conf'].forEach(id => {
-                document.getElementById(id).textContent = '—';
-            });
+            document.getElementById('clue-pos').textContent  = '—';
+            document.getElementById('clue-conf').textContent = '—';
         }
 
-        // ── Main spin ─────────────────────────────────────────
         async function loadSpin() {
             if (isSpinning) return;
             isSpinning = true;
             resetUI();
-
             try {
-                // 1. Fetch real data first — no race condition
                 const res = await fetch('/spin_data');
                 if (!res.ok) throw new Error("Server error");
                 const data = await res.json();
 
-                // Pre-load clue data into DOM (still blurred)
                 document.getElementById('clue-pos').textContent  = data.clues.pos;
                 document.getElementById('clue-conf').textContent = data.clues.conf;
                 currentWinner = data.winner;
 
-                // 2. Spin category reel for 2s → land on real category
                 await spinReel('reel-cat', CATEGORIES, 2000, data.clues.stat_name, '#eab308');
                 document.getElementById('card-cat').classList.add('locked-yellow');
 
-                // 3. Pop in the value
                 await new Promise(r => setTimeout(r, 200));
                 document.getElementById('val-display').textContent = data.clues.stat_val;
                 document.getElementById('card-val').classList.add('locked-yellow');
 
-                // 4. Short pause, then spin season reel for 2s → land on real season
                 await new Promise(r => setTimeout(r, 300));
                 await spinReel('reel-season', SEASONS, 2000, data.clues.season, '#fff');
                 document.getElementById('card-season').classList.add('locked');
 
-                // 5. Unlock input
                 document.getElementById('guessInput').disabled = false;
-                document.getElementById('submitBtn').disabled = false;
-
+                document.getElementById('submitBtn').disabled  = false;
             } catch (err) {
                 console.error(err);
                 document.getElementById('reel-cat').innerHTML =
@@ -342,34 +206,28 @@
             }
         }
 
-        // ── Submit ────────────────────────────────────────────
         document.getElementById('submitBtn').onclick = () => {
             if (!currentWinner) return;
             const rawGuess = document.getElementById('guessInput').value.trim();
-            // Block submit if typed value doesn't match any known player
-            const isValidPlayer = playerNames.some(p => norm(p) === norm(rawGuess));
-            if (!isValidPlayer) {
+            if (!playerNames.some(p => norm(p) === norm(rawGuess))) {
                 document.getElementById('guessInput').style.borderColor = '#ef4444';
                 setTimeout(() => document.getElementById('guessInput').style.borderColor = '', 800);
                 return;
             }
-            const guess = document.getElementById('guessInput').value.trim();
-            const banner = document.getElementById('resultBanner');
-            const correct = guess.toLowerCase() === currentWinner.toLowerCase();
-
+            const correct = rawGuess.toLowerCase() === currentWinner.toLowerCase();
+            const banner  = document.getElementById('resultBanner');
             if (correct) {
                 streak++;
                 if (streak > bestStreak) { bestStreak = streak; localStorage.setItem('spin_best', bestStreak); }
                 localStorage.setItem('spin_cur', streak);
                 banner.textContent = `✅ SWISH! It was ${currentWinner}`;
-                banner.className = "banner banner-ok";
+                banner.className   = "banner banner-ok";
             } else {
                 streak = 0;
                 localStorage.setItem('spin_cur', 0);
                 banner.textContent = `❌ Airball! It was ${currentWinner}`;
-                banner.className = "banner banner-err";
+                banner.className   = "banner banner-err";
             }
-
             banner.style.display = "block";
             document.getElementById('streakVal').textContent = streak;
             document.getElementById('bestVal').textContent   = bestStreak;
@@ -388,41 +246,39 @@
         function matchPlayers(players, val) {
             const q = norm(val.trim());
             if (q.length < 2) return [];
-            const lastNameMatches  = [];
-            const firstNameMatches = [];
-            const fullNameMatches  = [];
+            const last = [], first = [], full = [];
             players.forEach(p => {
-                const np = norm(p);
-                const parts = np.split(' ');
-                const firstName = parts[0] || '';
-                const lastName  = parts.slice(1).join(' ') || '';
-                if (lastName.startsWith(q))                                          lastNameMatches.push(p);
-                else if (firstName.startsWith(q))                                    firstNameMatches.push(p);
-                else if (np.startsWith(q))                                           fullNameMatches.push(p);
-                else if (np.replace(/[^a-z0-9]/g,'').includes(q.replace(/[^a-z0-9]/g,''))) fullNameMatches.push(p);
+                const np = norm(p), parts = np.split(' ');
+                const fn = parts[0] || '', ln = parts.slice(1).join(' ') || '';
+                if (ln.startsWith(q))      last.push(p);
+                else if (fn.startsWith(q)) first.push(p);
+                else if (np.startsWith(q) || np.replace(/[^a-z0-9]/g,'').includes(q.replace(/[^a-z0-9]/g,''))) full.push(p);
             });
-            return [...lastNameMatches, ...firstNameMatches, ...fullNameMatches];
+            return [...last, ...first, ...full];
         }
 
         input.addEventListener('input', () => {
             const matches = matchPlayers(playerNames, input.value);
             if (!matches.length) { suggs.classList.add('hidden'); return; }
-            if (!matches.length) { suggs.classList.add('hidden'); return; }
-            suggs.innerHTML = matches.map(n => {
-                const safe = n.replace(/\\/g, '\\\\').replace(/'/g, "\'");
-                return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + n + '</div>';
-            }).join('');
+            suggs.innerHTML = matches.map((m, i) =>
+                `<div class="sug-item" data-idx="${i}">${m}</div>`
+            ).join('');
+            suggs._matches = matches;
             suggs.classList.remove('hidden');
         });
 
-        function selectName(n) { input.value = n; suggs.classList.add('hidden'); }
+        suggs.addEventListener('click', e => {
+            const item = e.target.closest('.sug-item');
+            if (!item) return;
+            input.value = suggs._matches[parseInt(item.dataset.idx)];
+            suggs.classList.add('hidden');
+        });
 
         document.addEventListener('click', e => {
             if (!e.target.closest('#guessInput') && !e.target.closest('#suggestions'))
                 suggs.classList.add('hidden');
         });
 
-        // ── Init ──────────────────────────────────────────────
         document.getElementById('nextBtn').onclick = loadSpin;
         window.onload = loadSpin;
     </script>

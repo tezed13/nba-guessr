@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>NFL Spin</title>
+    <title>NFL Spin — Ball Knowledge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
@@ -52,7 +52,7 @@
 <body class="min-h-screen flex flex-col items-center p-5">
 
     <nav class="w-full max-w-xl mb-5 text-left">
-        <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Menu</a>
+        <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Home</a>
     </nav>
 
     <h1 style="font-size:36px;font-weight:900;font-style:italic;letter-spacing:-0.02em;margin-bottom:4px;
@@ -259,11 +259,18 @@
         input.addEventListener('input',()=>{
             const matches=matchPlayers(playerNames,input.value);
             if(!matches.length){suggs.classList.add('hidden');return;}
-            suggs.innerHTML=matches.map(n=>{
-                const safe=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-                return `<div class="sug-item" onclick="selectName('${safe}')">${n}</div>`;
-            }).join('');
+            suggs.innerHTML=matches.map((m,i)=>
+                `<div class="sug-item" data-idx="${i}">${m}</div>`
+            ).join('');
+            suggs._matches=matches;
             suggs.classList.remove('hidden');
+        });
+
+        suggs.addEventListener('click', e=>{
+            const item=e.target.closest('.sug-item');
+            if(!item) return;
+            input.value=suggs._matches[parseInt(item.dataset.idx)];
+            suggs.classList.add('hidden');
         });
 
         function selectName(n){input.value=n;suggs.classList.add('hidden');}

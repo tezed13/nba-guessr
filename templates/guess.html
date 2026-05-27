@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NBA Guessr</title>
+    <title>NBA Guessr — Ball Knowledge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
@@ -301,50 +301,6 @@
     <!-- ══════════════════════════════════════════
          SETTINGS DRAWER
     ══════════════════════════════════════════ -->
-    <div id="settingsDrawer" class="side-drawer">
-        <div class="drawer-content">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-                <p style="font-size:16px;font-weight:800;letter-spacing:0.03em">Game Settings</p>
-                <button class="btn-icon" onclick="closeSettings()">✕</button>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-                <div>
-                    <p class="setting-label">Start Year</p>
-                    <input type="number" id="setStart" class="dark-input" min="1947" max="2025" placeholder="e.g. 2000">
-                </div>
-                <div>
-                    <p class="setting-label">End Year</p>
-                    <input type="number" id="setEnd" class="dark-input" min="1947" max="2025" placeholder="e.g. 2025">
-                </div>
-            </div>
-
-            <div style="margin-bottom:14px">
-                <p class="setting-label">Player Pool</p>
-                <select id="setTypes" class="dark-input">
-                    <option value="starters">Starters (40+ GS)</option>
-                    <option value="bench">Bench (5–39 GS)</option>
-                    <option value="endbench">End of Bench (&lt;5 GS)</option>
-                    <option value="starters,bench">Starters + Bench</option>
-                    <option value="starters,bench,endbench">All Players</option>
-                </select>
-            </div>
-
-            <div style="margin-bottom:20px">
-                <p class="setting-label">Max Guesses</p>
-                <div style="display:flex;gap:8px">
-                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="1" onclick="selectGuessLimit(1)">1</button>
-                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="2" onclick="selectGuessLimit(2)">2</button>
-                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="3" onclick="selectGuessLimit(3)">3</button>
-                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="4" onclick="selectGuessLimit(4)">4</button>
-                    <button class="guess-limit-btn btn btn-dim" style="flex:1" data-val="5" onclick="selectGuessLimit(5)">5</button>
-                </div>
-            </div>
-
-            <button class="btn btn-blue" style="width:100%" onclick="applySettings()">Apply & New Player</button>
-        </div>
-    </div>
-
     <!-- ══════════════════════════════════════════
          LEADERBOARD DRAWER
     ══════════════════════════════════════════ -->
@@ -377,7 +333,6 @@
                         <tr>
                             <th>#</th>
                             <th>Player</th>
-                            <th>Wins</th>
                             <th style="text-align:right">Best Streak</th>
                         </tr>
                     </thead>
@@ -395,7 +350,7 @@
     <div id="app">
         <!-- Top bar -->
         <div id="topbar">
-            <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Menu</a>
+            <a href="/" style="font-size:13px;font-weight:600;color:#52525b;text-decoration:none">← Home</a>
             <div style="text-align:center">
                 <div style="font-size:16px;font-weight:900;letter-spacing:0.03em">NBA GUESSR</div>
                 <div id="rangeLabel" style="font-size:11px;color:#52525b;font-weight:600;margin-top:2px">{{ start_season }} – {{ end_season }}</div>
@@ -403,7 +358,6 @@
             <div style="display:flex;align-items:center;gap:8px">
                 <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
                 <button class="btn-icon" onclick="openLB()" title="Leaderboard">🏆</button>
-                <button class="btn-icon" onclick="openSettings()" title="Settings">⚙️</button>
             </div>
         </div>
 
@@ -670,50 +624,9 @@
         document.getElementById('resultBanner').style.display = 'none';
     }
 
-    // ── Settings drawer ──────────────────────────────────────────
-    let pendingGuessLimit = maxGuesses;
+    // Settings handled on home screen
 
-    function openSettings() {
-        document.getElementById('setStart').value = activeSeason.start;
-        document.getElementById('setEnd').value   = activeSeason.end;
-        document.getElementById('setTypes').value = activeTypes;
-        pendingGuessLimit = maxGuesses;
-        updateGuessLimitBtns();
-        document.getElementById('settingsDrawer').classList.add('open');
-    }
 
-    function closeSettings() {
-        document.getElementById('settingsDrawer').classList.remove('open');
-    }
-
-    function selectGuessLimit(n) {
-        pendingGuessLimit = n;
-        updateGuessLimitBtns();
-    }
-
-    function updateGuessLimitBtns() {
-        document.querySelectorAll('.guess-limit-btn').forEach(btn => {
-            const active = parseInt(btn.dataset.val) === pendingGuessLimit;
-            btn.className = `guess-limit-btn btn ${active ? 'btn-blue' : 'btn-dim'}`;
-            btn.style.flex = '1';
-        });
-    }
-
-    function applySettings() {
-        const s = parseInt(document.getElementById('setStart').value) || activeSeason.start;
-        const e = parseInt(document.getElementById('setEnd').value)   || activeSeason.end;
-        if (s > e) { alert('Start year must be before end year.'); return; }
-        activeSeason = { start: s, end: e };
-        activeTypes  = document.getElementById('setTypes').value;
-        maxGuesses   = pendingGuessLimit;
-        document.getElementById('rangeLabel').textContent = `${s} – ${e}`;
-        closeSettings();
-        loadPlayer();
-    }
-
-    document.getElementById('settingsDrawer').addEventListener('click', e => {
-        if (e.target === document.getElementById('settingsDrawer')) closeSettings();
-    });
 
     // ── Reset UI ─────────────────────────────────────────────────
     function resetUI() {
@@ -767,6 +680,9 @@
             const aw = data.awards || {};
             if (aw.mvp)     badges.innerHTML += `<span style="${bsY}">👑 ${aw.mvp}× MVP</span>`;
             if (aw.dpoy)    badges.innerHTML += `<span style="${bsG}">🛡️ ${aw.dpoy}× DPOY</span>`;
+            if (aw.roy)     badges.innerHTML += `<span style="${bsB}">🌱 ${aw.roy}× ROY</span>`;
+            if (aw.smoy)    badges.innerHTML += `<span style="${bs}">6️⃣ ${aw.smoy}× 6MOY</span>`;
+            if (aw.mip)     badges.innerHTML += `<span style="${bs}">📈 ${aw.mip}× MIP</span>`;
             if (aw.allstar) badges.innerHTML += `<span style="${bsB}">⭐ ${aw.allstar}× All-Star</span>`;
             if (aw.allnba)  badges.innerHTML += `<span style="${bsB}">🏅 ${aw.allnba}× All-NBA${aw.allnba_first ? ' (' + aw.allnba_first + '× 1st)' : ''}</span>`;
             if (aw.alldef)  badges.innerHTML += `<span style="${bsG}">🔒 ${aw.alldef}× All-Def</span>`;
@@ -897,15 +813,23 @@
         return [...lastNameMatches, ...firstNameMatches, ...fullNameMatches];
     }
 
-    input.addEventListener('input', () => {
-        const matches = matchPlayers(allPlayers, input.value);
-        if (!matches.length) { suggs.classList.add('hidden'); return; }
-        suggs.innerHTML = matches.map(m => {
-            const safe = m.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-            return '<div class="sug-item" onclick="selectName(\'' + safe + '\')">' + m + '</div>';
-        }).join('');
-        suggs.classList.remove('hidden');
-    });
+        input.addEventListener('input', () => {
+            const matches = matchPlayers(allPlayers, input.value);
+            if (!matches.length) { suggs.classList.add('hidden'); return; }
+            suggs.innerHTML = matches.map((m, i) =>
+                `<div class="sug-item" data-idx="${i}">${m}</div>`
+            ).join('');
+            suggs._matches = matches;
+            suggs.classList.remove('hidden');
+        });
+
+        suggs.addEventListener('click', e => {
+            const item = e.target.closest('.sug-item');
+            if (!item) return;
+            input.value = suggs._matches[parseInt(item.dataset.idx)];
+            suggs.classList.add('hidden');
+        });
+
 
     function selectName(name) {
         input.value = name;
@@ -919,7 +843,6 @@
 
     // ── Init ─────────────────────────────────────────────────────
     document.getElementById('nextBtn').addEventListener('click', loadPlayer);
-    updateGuessLimitBtns();
     window.onload = loadPlayer;
     </script>
 </body>
