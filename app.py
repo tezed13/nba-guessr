@@ -270,24 +270,6 @@ def build_nfl_lookups():
 
 nfl_player_info, nfl_draft_info = build_nfl_lookups()
 
-# short_name (e.g. "T.Brady") -> display_name (e.g. "Tom Brady")
-# Built from nfl_players_df which has both columns
-def build_nfl_name_map():
-    name_map = {}  # short_name -> display_name
-    if not nfl_players_df.empty:
-        for _, row in nfl_players_df.iterrows():
-            short   = row.get("short_name") or row.get("player_name")
-            display = row.get("display_name") or row.get("player_name")
-            if short and display:
-                name_map[str(short)] = str(display)
-    return name_map
-
-nfl_name_map = build_nfl_name_map()
-
-def expand_nfl_name(short_name: str) -> str:
-    """Convert T.Brady -> Tom Brady using the players table."""
-    return nfl_name_map.get(str(short_name), str(short_name))
-
 NFL_STAT_MAP = {
     "passing_yards":   "Passing Yards",
     "passing_tds":     "Passing TDs",
@@ -506,8 +488,7 @@ async def random_player(
 async def nfl_all_players():
     if nfl_stats_df.empty:
         return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
-    short_names = nfl_stats_df["player_name"].dropna().unique().tolist()
-    players = sorted(set(expand_nfl_name(n) for n in short_names))
+    players = sorted(nfl_stats_df["player_display_name"].dropna().unique().tolist())
     return players
 
 @app.get("/nfl/random_player")
@@ -538,25 +519,24 @@ async def nfl_random_player(
             return JSONResponse({"error": "No players match this position filter"}, status_code=404)
 
         # Require at least 5 seasons in the filtered range
-        season_counts = pool.groupby("player_name")["season"].nunique()
+        season_counts = pool.groupby("player_display_name")["season"].nunique()
         five_plus     = season_counts[season_counts >= 5].index.tolist()
 
         # Also require meaningful production in at least 1 season
         if t == "qb":
-            qual = pool[pool["player_name"].isin(five_plus) & (pool["attempts"] >= 100)]
+            qual = pool[pool["player_display_name"].isin(five_plus) & (pool["attempts"] >= 100)]
         elif t == "skill":
             pool = pool.copy()
             pool["touches"] = pool["carries"].fillna(0) + pool["targets"].fillna(0)
-            qual = pool[pool["player_name"].isin(five_plus) & (pool["touches"] >= 50)]
+            qual = pool[pool["player_display_name"].isin(five_plus) & (pool["touches"] >= 50)]
         else:
-            qual = pool[pool["player_name"].isin(five_plus)]
+            qual = pool[pool["player_display_name"].isin(five_plus)]
 
         eligible_pool = qual if not qual.empty else pool
-        short_name  = random.choice(eligible_pool["player_name"].unique().tolist())
-        random_name = expand_nfl_name(short_name)
+        random_name   = random.choice(eligible_pool["player_display_name"].unique().tolist())
 
         # Full career (all seasons in DB, not just filtered range)
-        career = nfl_stats_df[nfl_stats_df["player_name"] == short_name].copy()
+        career = nfl_stats_df[nfl_stats_df["player_display_name"] == random_name].copy()
         career = career.sort_values("season", ascending=False)
 
         # Build per-season rows for the table
@@ -588,9 +568,10 @@ async def nfl_random_player(
             })
 
         # Get player meta from lookup
+        # Match player_id (gsis format) to our lookup dicts
         gsis_id = career["player_id"].iloc[0] if "player_id" in career.columns else None
-        pinfo   = nfl_player_info.get(gsis_id, {})
-        dinfo   = nfl_draft_info.get(gsis_id, {})
+        pinfo   = nfl_player_info.get(str(gsis_id), {}) if gsis_id else {}
+        dinfo   = nfl_draft_info.get(str(gsis_id), {}) if gsis_id else {}
 
         return JSONResponse({
             "player_name": random_name,
@@ -654,7 +635,7 @@ async def nfl_spin_data():
         pos  = str(leader.get("position", "?"))
 
         return JSONResponse({
-            "winner": expand_nfl_name(leader["player_name"]),
+            "winner": leader["player_display_name"],
             "clues": {
                 "stat_name": NFL_STAT_MAP[stat_key],
                 "stat_val":  str(round(float(leader[stat_key]), 0) if "." in str(leader[stat_key]) else int(leader[stat_key])),
@@ -736,11 +717,6 @@ NFL_TEAM_TO_CONF = {
 }
 
 
-@app.get("/nfl/debug_names")
-async def nfl_debug_names():
-    """Temporary debug route — remove after fixing name issue."""
-    if nfl_players_df.empty:
-        return JSONResponse({"error": "players df empty"})
     if nfl_stats_df.empty:
         return JSONResponse({"error": "stats df empty"})
 
@@ -775,7 +751,6 @@ async def nfl_debug_names():
         "sample_players_rows":   sample_players,
         "manning_in_stats":      peyton_stats,
         "manning_in_players":    peyton_info,
-        "name_map_sample":       dict(list(nfl_name_map.items())[:20]),
     })
 
 @app.get("/debug_columns")
