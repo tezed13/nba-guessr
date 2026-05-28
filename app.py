@@ -287,6 +287,139 @@ QB_POSITIONS  = {"QB"}
 SKILL_POSITIONS = {"WR", "RB", "TE", "FB"}
 ALL_POSITIONS   = QB_POSITIONS | SKILL_POSITIONS | {"K", "P", "OL", "DL", "LB", "CB", "S", "DB", "DE", "DT"}
 
+
+# ---------------------------------------------------------------------------
+# MLB — Load from Rdatasets Lahman CSVs at startup
+# ---------------------------------------------------------------------------
+
+MLB_BASE = "https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/Lahman/"
+MLB_CACHE = BASE_DIR / "Data" / "mlb_cache"
+MLB_CACHE.mkdir(parents=True, exist_ok=True)
+
+mlb_batting_df  = pd.DataFrame()
+mlb_pitching_df = pd.DataFrame()
+mlb_people_df   = pd.DataFrame()
+mlb_awards_lkp  = {}  # playerID -> {mvp, cy_young, roy, allstar, hof, silver_slugger, gold_glove}
+
+def load_mlb_data():
+    global mlb_batting_df, mlb_pitching_df, mlb_people_df, mlb_awards_lkp
+
+    files = {
+        "batting":   ("Batting.csv",       MLB_CACHE / "batting.parquet"),
+        "pitching":  ("Pitching.csv",       MLB_CACHE / "pitching.parquet"),
+        "people":    ("People.csv",         MLB_CACHE / "people.parquet"),
+        "awards":    ("AwardsPlayers.csv",  MLB_CACHE / "awards.parquet"),
+        "hof":       ("HallOfFame.csv",     MLB_CACHE / "hof.parquet"),
+        "allstar":   ("AllstarFull.csv",    MLB_CACHE / "allstar.parquet"),
+    }
+    dfs = {}
+    for key, (fname, cache_path) in files.items():
+        if cache_path.exists():
+            dfs[key] = pd.read_parquet(cache_path)
+            print(f"[MLB] {fname} loaded from cache: {len(dfs[key])} rows")
+        else:
+            import requests as _req
+            print(f"[MLB] Downloading {fname}...")
+            r = _req.get(MLB_BASE + fname, timeout=30)
+            r.raise_for_status()
+            df = pd.read_csv(pd.io.common.StringIO(r.text))
+            # Drop rownames column if present
+            if 'rownames' in df.columns:
+                df = df.drop(columns=['rownames'])
+            df.to_parquet(cache_path, index=False)
+            dfs[key] = df
+            print(f"[MLB] {fname} downloaded & cached: {len(df)} rows")
+
+    bat = dfs["batting"].copy()
+    pit = dfs["pitching"].copy()
+    ppl = dfs["people"].copy()
+    aw  = dfs["awards"]
+    hof = dfs["hof"]
+    ast = dfs["allstar"]
+
+    # ── Batting: compute AVG, OBP, SLG, aggregate multi-team stints ──
+    for col in ['AB','H','BB','HBP','SF','X2B','X3B','HR','RBI','SB','R','G']:
+        bat[col] = pd.to_numeric(bat[col], errors='coerce').fillna(0).astype(int)
+    bat['yearID'] = pd.to_numeric(bat['yearID'], errors='coerce')
+
+    def bat_agg(grp):
+        row = grp.iloc[0].copy()
+        for c in ['G','AB','R','H','X2B','X3B','HR','RBI','BB','SO','SB','HBP','SF']:
+            row[c] = grp[c].sum()
+        row['teamID'] = grp.sort_values('G', ascending=False).iloc[0]['teamID']
+        # AVG
+        row['AVG'] = round(row['H'] / row['AB'], 3) if row['AB'] > 0 else 0.0
+        # OBP = (H+BB+HBP) / (AB+BB+HBP+SF)
+        denom = row['AB'] + row['BB'] + row['HBP'] + row['SF']
+        row['OBP'] = round((row['H'] + row['BB'] + row['HBP']) / denom, 3) if denom > 0 else 0.0
+        # SLG = TB / AB
+        tb = row['H'] + row['X2B'] + 2*row['X3B'] + 3*row['HR']
+        row['SLG'] = round(tb / row['AB'], 3) if row['AB'] > 0 else 0.0
+        row['OPS'] = round(row['OBP'] + row['SLG'], 3)
+        return row
+
+    bat = bat.groupby(['playerID','yearID'], as_index=False).apply(bat_agg)
+    bat = bat.sort_values(['playerID','yearID'])
+
+    # ── Pitching: compute IP, ERA, aggregate stints ──
+    for col in ['IPouts','ER','H','BB','SO','W','L','G','GS','SV','CG']:
+        pit[col] = pd.to_numeric(pit[col], errors='coerce').fillna(0).astype(int)
+    pit['yearID'] = pd.to_numeric(pit['yearID'], errors='coerce')
+
+    def pit_agg(grp):
+        row = grp.iloc[0].copy()
+        for c in ['W','L','G','GS','CG','SV','IPouts','H','ER','BB','SO']:
+            row[c] = grp[c].sum()
+        row['teamID'] = grp.sort_values('G', ascending=False).iloc[0]['teamID']
+        row['IP']  = round(row['IPouts'] / 3, 1)
+        row['ERA'] = round((row['ER'] * 27) / row['IPouts'], 2) if row['IPouts'] > 0 else 0.0
+        row['WHIP']= round((row['BB'] + row['H']) / row['IP'], 2) if row['IP'] > 0 else 0.0
+        return row
+
+    pit = pit.groupby(['playerID','yearID'], as_index=False).apply(pit_agg)
+    pit = pit.sort_values(['playerID','yearID'])
+
+    # ── People: build name lookup ──
+    ppl['fullName'] = ppl['nameFirst'].fillna('') + ' ' + ppl['nameLast'].fillna('')
+    ppl['fullName'] = ppl['fullName'].str.strip()
+    ppl['height_str'] = ppl['height'].apply(lambda v: f"{int(v)//12}'{int(v)%12}\"" if pd.notna(v) and str(v).replace('.','').isdigit() else None)
+
+    # Merge names into batting and pitching
+    name_map = ppl.set_index('playerID')[['fullName','height_str','bats','throws']].to_dict('index')
+
+    bat['player_name'] = bat['playerID'].map(lambda p: name_map.get(p,{}).get('fullName', p))
+    pit['player_name'] = pit['playerID'].map(lambda p: name_map.get(p,{}).get('fullName', p))
+
+    # ── Awards lookup ──
+    awards_dict = {}
+    for _, row in aw.iterrows():
+        pid = row['playerID']
+        if pid not in awards_dict: awards_dict[pid] = {}
+        aid = str(row.get('awardID','')).lower()
+        awards_dict[pid][aid] = awards_dict[pid].get(aid, 0) + 1
+
+    # HOF
+    hof_ids = set(hof[hof['inducted'] == 'Y']['playerID'].tolist())
+    for pid in hof_ids:
+        if pid not in awards_dict: awards_dict[pid] = {}
+        awards_dict[pid]['hof'] = 1
+
+    # All-Star
+    for pid, grp in ast.groupby('playerID'):
+        if pid not in awards_dict: awards_dict[pid] = {}
+        awards_dict[pid]['allstar'] = len(grp)
+
+    mlb_batting_df  = bat
+    mlb_pitching_df = pit
+    mlb_people_df   = ppl
+    mlb_awards_lkp  = awards_dict
+    print(f"[MLB] Ready — {len(bat)} batting rows, {len(pit)} pitching rows, {len(ppl)} players")
+
+try:
+    load_mlb_data()
+except Exception as e:
+    print(f"[MLB] Load error: {e}")
+
 # ---------------------------------------------------------------------------
 # Page routes
 # ---------------------------------------------------------------------------
@@ -715,6 +848,135 @@ NFL_TEAM_TO_CONF = {
     "ATL":"NFC","CAR":"NFC","NO":"NFC","TB":"NFC",
     "ARI":"NFC","LA":"NFC","LAR":"NFC","SF":"NFC","SEA":"NFC",
 }
+
+
+# ---------------------------------------------------------------------------
+# MLB page route
+# ---------------------------------------------------------------------------
+
+@app.get("/mlb_guess", response_class=HTMLResponse)
+async def mlb_guess_page(
+    request: Request,
+    start_season: int = Query(1950),
+    end_season: int = Query(2024),
+    types: str = Query("hitters"),
+):
+    return templates.TemplateResponse(request, "mlb_guess.html", {
+        "start_season": start_season,
+        "end_season":   end_season,
+        "types":        types,
+    })
+
+# ---------------------------------------------------------------------------
+# MLB API routes
+# ---------------------------------------------------------------------------
+
+@app.get("/mlb/all_players")
+async def mlb_all_players(types: str = Query("hitters")):
+    if types == "pitchers":
+        if mlb_pitching_df.empty:
+            return JSONResponse({"error": "MLB data not loaded"}, status_code=500)
+        players = sorted(mlb_pitching_df["player_name"].dropna().unique().tolist())
+    else:
+        if mlb_batting_df.empty:
+            return JSONResponse({"error": "MLB data not loaded"}, status_code=500)
+        players = sorted(mlb_batting_df["player_name"].dropna().unique().tolist())
+    return players
+
+
+@app.get("/mlb/random_player")
+async def mlb_random_player(
+    start_season: int = Query(1950),
+    end_season:   int = Query(2024),
+    types:        str = Query("hitters"),   # hitters | pitchers
+):
+    try:
+        is_pitcher = types.lower() == "pitchers"
+        df = mlb_pitching_df if is_pitcher else mlb_batting_df
+
+        if df.empty:
+            return JSONResponse({"error": "MLB data not loaded"}, status_code=500)
+
+        pool = df[(df["yearID"] >= start_season) & (df["yearID"] <= end_season)].copy()
+        if pool.empty:
+            return JSONResponse({"error": "No players in this season range"}, status_code=404)
+
+        # Qualify: hitters need 3+ seasons of 200+ AB; pitchers need 3+ seasons of 30+ IP
+        if is_pitcher:
+            qual = pool[pool["IP"] >= 30]
+        else:
+            qual = pool[pool["AB"] >= 200]
+
+        season_counts = qual.groupby("playerID")["yearID"].nunique()
+        three_plus    = season_counts[season_counts >= 3].index.tolist()
+        eligible      = pool[pool["playerID"].isin(three_plus)]
+        if eligible.empty:
+            eligible = pool
+
+        random_pid  = random.choice(eligible["playerID"].unique().tolist())
+        random_name = eligible[eligible["playerID"] == random_pid]["player_name"].iloc[0]
+
+        # Full career
+        career = df[df["playerID"] == random_pid].copy().sort_values("yearID", ascending=False)
+
+        # Build season rows
+        season_rows = []
+        for _, row in career.iterrows():
+            def g(col, default=None):
+                v = row.get(col, default)
+                if v is None: return default
+                if isinstance(v, float) and (math.isnan(v) or math.isinf(v)): return default
+                return v
+
+            if is_pitcher:
+                season_rows.append({
+                    "season": g("yearID"), "team": g("teamID"),
+                    "W":  g("W"),  "L":  g("L"),  "G":  g("G"),
+                    "GS": g("GS"), "SV": g("SV"), "IP": g("IP"),
+                    "H":  g("H"),  "BB": g("BB"), "SO": g("SO"),
+                    "ERA": g("ERA"), "WHIP": g("WHIP"),
+                })
+            else:
+                season_rows.append({
+                    "season": g("yearID"), "team": g("teamID"),
+                    "G":   g("G"),   "AB":  g("AB"),  "R":  g("R"),
+                    "H":   g("H"),   "2B":  g("X2B"), "3B": g("X3B"),
+                    "HR":  g("HR"),  "RBI": g("RBI"), "BB": g("BB"),
+                    "SO":  g("SO"),  "SB":  g("SB"),
+                    "AVG": g("AVG"), "OBP": g("OBP"), "SLG": g("SLG"),
+                })
+
+        # Awards
+        pid    = random_pid
+        awards = mlb_awards_lkp.get(pid, {})
+
+        # People info
+        prow = mlb_people_df[mlb_people_df["playerID"] == pid]
+        height = prow.iloc[0]["height_str"] if not prow.empty else None
+        bats   = prow.iloc[0]["bats"]       if not prow.empty else None
+        throws = prow.iloc[0]["throws"]     if not prow.empty else None
+
+        return JSONResponse({
+            "player_name": random_name,
+            "height":      height,
+            "bats":        str(bats) if bats and str(bats) != 'nan' else None,
+            "throws":      str(throws) if throws and str(throws) != 'nan' else None,
+            "is_pitcher":  is_pitcher,
+            "awards": {
+                "mvp":          awards.get("most valuable player", 0),
+                "cy_young":     awards.get("cy young award", 0),
+                "roy":          awards.get("rookie of the year", 0),
+                "allstar":      awards.get("allstar", 0),
+                "gold_glove":   awards.get("gold glove", 0),
+                "silver_slugger": awards.get("silver slugger", 0),
+                "hof":          bool(awards.get("hof", 0)),
+            },
+            "seasons": season_rows,
+        })
+
+    except Exception as e:
+        print(f"CRASH /mlb/random_player: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.get("/debug_columns")
 async def debug_columns():

@@ -52,12 +52,14 @@
     .card.c-gold:hover   { border-color: #eab308; }
     .card.c-red:hover    { border-color: #ef4444; }
     .card.c-orange:hover { border-color: #f97316; }
+    .card.c-green:hover  { border-color: #16a34a; }
 
     .card-bar { height: 3px; flex-shrink: 0; }
     .c-blue  .card-bar { background: #3b82f6; }
     .c-gold  .card-bar { background: #eab308; }
     .c-red   .card-bar { background: #ef4444; }
     .c-orange .card-bar { background: #f97316; }
+    .c-green  .card-bar { background: #16a34a; }
 
     .card-body { padding: 20px; display: flex; flex-direction: column; flex: 1; }
 
@@ -66,6 +68,7 @@
     .c-gold  .card-tag { color: #eab308; }
     .c-red   .card-tag { color: #ef4444; }
     .c-orange .card-tag { color: #f97316; }
+    .c-green  .card-tag { color: #16a34a; }
 
     .card-title { font-size: 20px; font-weight: 900; font-style: italic; letter-spacing: -0.02em; color: #fff; margin-bottom: 8px; }
     .card-desc  { font-size: 12px; color: #52525b; line-height: 1.65; margin-bottom: 16px; flex: 1; }
@@ -81,6 +84,7 @@
     .c-gold  .sk-val { color: #eab308; }
     .c-red   .sk-val { color: #ef4444; }
     .c-orange .sk-val { color: #f97316; }
+    .c-green  .sk-val { color: #16a34a; }
 
     .play-btn {
       width: 100%; padding: 13px; border: none; border-radius: 12px;
@@ -94,6 +98,7 @@
     .c-gold  .play-btn { background: #eab308; color: #000; }
     .c-red   .play-btn { background: #ef4444; color: #fff; }
     .c-orange .play-btn { background: #f97316; color: #fff; }
+    .c-green  .play-btn { background: #16a34a; color: #fff; }
 
     /* DIFFICULTY SCREEN */
     .screen { display: none; }
@@ -176,6 +181,7 @@
     <div class="sport-tabs">
       <button class="stab on" onclick="setSport('nba', this)">🏀 NBA</button>
       <button class="stab"    onclick="setSport('nfl', this)">🏈 NFL</button>
+      <button class="stab"    onclick="setSport('mlb', this)">⚾ MLB</button>
     </div>
     <div style="width: 120px"></div>
   </nav>
@@ -365,6 +371,7 @@
       'nba-g-best': 'guessr_best',    'nba-g-cur': 'guessr_cur',
       'nba-s-best': 'spin_best',      'nba-s-cur': 'spin_cur',
       'nfl-g-best': 'nfl_guessr_best','nfl-g-cur': 'nfl_guessr_cur',
+      'mlb-g-best': 'mlb_guessr_best','mlb-g-cur': 'mlb_guessr_cur',
       'nfl-s-best': 'nfl_spin_best',  'nfl-s-cur': 'nfl_spin_cur',
     };
     Object.entries(STREAK_MAP).forEach(([id, key]) => {
@@ -379,10 +386,16 @@
       btn.classList.add('on');
       document.getElementById('nba-section').style.display = s === 'nba' ? 'block' : 'none';
       document.getElementById('nfl-section').style.display = s === 'nfl' ? 'block' : 'none';
+      document.getElementById('mlb-section').style.display = s === 'mlb' ? 'block' : 'none';
       hideDiff();
     }
 
     // ── Difficulty configs ────────────────────────────────────────
+    const MLB_DIFFS = [
+      { val:'hitters',  icon:'🏏', name:'Hitters',  desc:'Position players — batting average, home runs, RBIs. The bread and butter of the game.',   tag:'easy',   label:'Easy'   },
+      { val:'pitchers', icon:'⚾', name:'Pitchers', desc:'Starters and closers — ERA, strikeouts, WHIP. Can you identify them from the mound stats?', tag:'medium', label:'Medium' },
+    ];
+
     const NBA_DIFFS = [
       { val:'starters',              icon:'🏆', name:'Starters',    desc:'40+ games started. The stars you\'ve seen a thousand times.',                  tag:'easy',   label:'Easy'   },
       { val:'bench',                 icon:'💪', name:'Bench',        desc:'5–39 games started. Solid contributors who flew a little under the radar.',     tag:'medium', label:'Medium' },
@@ -400,17 +413,18 @@
     function showDiff(sport) {
       activeSport = sport;
       const isNfl   = sport === 'nfl';
-      const diffs   = isNfl ? NFL_DIFFS : NBA_DIFFS;
-      const accent  = isNfl ? '#ef4444' : '#3b82f6';
-      const bgSel   = isNfl ? '#1c0000' : '#0c1629';
+      const isMlb   = sport === 'mlb';
+      const diffs   = isNfl ? NFL_DIFFS : isMlb ? MLB_DIFFS : NBA_DIFFS;
+      const accent  = isNfl ? '#ef4444' : isMlb ? '#16a34a' : '#3b82f6';
+      const bgSel   = isNfl ? '#1c0000' : isMlb ? '#052e16' : '#0c1629';
       const defPool = diffs[0].val;
-      const defG    = isNfl ? 2 : 2;
+      const defG    = 2;
 
       selectedPool    = defPool;
       selectedGuesses = defG;
 
       document.getElementById('diff-heading').textContent =
-        (isNfl ? 'NFL' : 'NBA') + ' Guessr — Choose Difficulty';
+        (isNfl ? 'NFL' : isMlb ? 'MLB' : 'NBA') + ' Guessr — Choose Difficulty';
 
       // Build diff cards
       document.getElementById('diff-cards').innerHTML = diffs.map((d, i) => `
@@ -454,6 +468,18 @@
         { label:'2020s',    start:2020, end:2026 },
         { label:'All Time', start:1947, end:2026 },
       ];
+      const MLB_ERAS = [
+        { label:'1900s',   start:1900, end:1919 },
+        { label:'20s–40s', start:1920, end:1949 },
+        { label:'50s–60s', start:1950, end:1969 },
+        { label:'70s–80s', start:1970, end:1989 },
+        { label:'90s',     start:1990, end:1999 },
+        { label:'2000s',   start:2000, end:2009 },
+        { label:'2010s',   start:2010, end:2019 },
+        { label:'2020s',   start:2020, end:2024 },
+        { label:'All Time',start:1871, end:2024 },
+      ];
+
       const NFL_ERAS = [
         { label:'2000s',    start:1999, end:2009 },
         { label:'2010s',    start:2010, end:2019 },
@@ -461,7 +487,7 @@
         { label:'All Time', start:1999, end:2024 },
       ];
 
-      const eras      = isNfl ? NFL_ERAS : NBA_ERAS;
+      const eras      = isNfl ? NFL_ERAS : isMlb ? MLB_ERAS : NBA_ERAS;
       const eraAccent = accent;
       const eraSection = document.getElementById('era-section');
       const eraChips   = document.getElementById('era-chips');
@@ -516,8 +542,10 @@
       const { start, end } = getSeasonRange();
       if (activeSport === 'nba') {
         window.location.href = `/guess?start_season=${start}&end_season=${end}&types=${selectedPool}&max_guesses=${selectedGuesses}`;
-      } else {
+      } else if (activeSport === 'nfl') {
         window.location.href = `/nfl_guess?start_season=${start}&end_season=${end}&types=${selectedPool}&max_guesses=${selectedGuesses}`;
+      } else {
+        window.location.href = `/mlb_guess?start_season=${start}&end_season=${end}&types=${selectedPool}&max_guesses=${selectedGuesses}`;
       }
     }
   </script>
