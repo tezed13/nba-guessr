@@ -2,6 +2,7 @@ import random
 import re
 import math
 import sqlite3
+import requests
 import pandas as pd
 from pathlib import Path
 from fastapi import FastAPI, Request, Query
@@ -318,9 +319,8 @@ def load_mlb_data():
             dfs[key] = pd.read_parquet(cache_path)
             print(f"[MLB] {fname} loaded from cache: {len(dfs[key])} rows")
         else:
-            import requests as _req
             print(f"[MLB] Downloading {fname}...")
-            r = _req.get(MLB_BASE + fname, timeout=30)
+            r = requests.get(MLB_BASE + fname, timeout=30)
             r.raise_for_status()
             df = pd.read_csv(pd.io.common.StringIO(r.text))
             # Drop rownames column if present
@@ -343,22 +343,38 @@ def load_mlb_data():
     bat['yearID'] = pd.to_numeric(bat['yearID'], errors='coerce')
 
     def bat_agg(grp):
-        row = grp.iloc[0].copy()
-        for c in ['G','AB','R','H','X2B','X3B','HR','RBI','BB','SO','SB','HBP','SF']:
-            row[c] = grp[c].sum()
-        row['teamID'] = grp.sort_values('G', ascending=False).iloc[0]['teamID']
-        # AVG
-        row['AVG'] = round(row['H'] / row['AB'], 3) if row['AB'] > 0 else 0.0
-        # OBP = (H+BB+HBP) / (AB+BB+HBP+SF)
-        denom = row['AB'] + row['BB'] + row['HBP'] + row['SF']
-        row['OBP'] = round((row['H'] + row['BB'] + row['HBP']) / denom, 3) if denom > 0 else 0.0
-        # SLG = TB / AB
-        tb = row['H'] + row['X2B'] + 2*row['X3B'] + 3*row['HR']
-        row['SLG'] = round(tb / row['AB'], 3) if row['AB'] > 0 else 0.0
-        row['OPS'] = round(row['OBP'] + row['SLG'], 3)
-        return row
+        g   = int(grp['G'].sum())
+        ab  = int(grp['AB'].sum())
+        r   = int(grp['R'].sum())
+        h   = int(grp['H'].sum())
+        x2b = int(grp['X2B'].sum())
+        x3b = int(grp['X3B'].sum())
+        hr  = int(grp['HR'].sum())
+        rbi = int(grp['RBI'].sum())
+        bb  = int(grp['BB'].sum())
+        so  = int(grp['SO'].sum()) if 'SO' in grp.columns else 0
+        sb  = int(grp['SB'].sum())
+        hbp = int(grp['HBP'].sum())
+        sf  = int(grp['SF'].sum())
+        team = grp.sort_values('G', ascending=False).iloc[0]['teamID']
+        lg   = grp.sort_values('G', ascending=False).iloc[0]['lgID']
+        avg  = round(h / ab, 3) if ab > 0 else 0.0
+        denom = ab + bb + hbp + sf
+        obp  = round((h + bb + hbp) / denom, 3) if denom > 0 else 0.0
+        tb   = h + x2b + 2*x3b + 3*hr
+        slg  = round(tb / ab, 3) if ab > 0 else 0.0
+        return pd.Series({
+            'teamID': team, 'lgID': lg,
+            'G': g, 'AB': ab, 'R': r, 'H': h,
+            'X2B': x2b, 'X3B': x3b, 'HR': hr, 'RBI': rbi,
+            'BB': bb, 'SO': so, 'SB': sb, 'HBP': hbp, 'SF': sf,
+            'AVG': avg, 'OBP': obp, 'SLG': slg, 'OPS': round(obp+slg, 3),
+        })
 
-    bat = bat.groupby(['playerID','yearID'], as_index=False).apply(bat_agg)
+    try:
+        bat = bat.groupby(['playerID','yearID'], as_index=False).apply(bat_agg, include_groups=False)
+    except TypeError:
+        bat = bat.groupby(['playerID','yearID'], as_index=False).apply(bat_agg)
     bat = bat.sort_values(['playerID','yearID'])
 
     # ── Pitching: compute IP, ERA, aggregate stints ──
@@ -367,16 +383,33 @@ def load_mlb_data():
     pit['yearID'] = pd.to_numeric(pit['yearID'], errors='coerce')
 
     def pit_agg(grp):
-        row = grp.iloc[0].copy()
-        for c in ['W','L','G','GS','CG','SV','IPouts','H','ER','BB','SO']:
-            row[c] = grp[c].sum()
-        row['teamID'] = grp.sort_values('G', ascending=False).iloc[0]['teamID']
-        row['IP']  = round(row['IPouts'] / 3, 1)
-        row['ERA'] = round((row['ER'] * 27) / row['IPouts'], 2) if row['IPouts'] > 0 else 0.0
-        row['WHIP']= round((row['BB'] + row['H']) / row['IP'], 2) if row['IP'] > 0 else 0.0
-        return row
+        w      = int(grp['W'].sum())
+        l      = int(grp['L'].sum())
+        g      = int(grp['G'].sum())
+        gs     = int(grp['GS'].sum())
+        cg     = int(grp['CG'].sum())
+        sv     = int(grp['SV'].sum())
+        ipouts = int(grp['IPouts'].sum())
+        h      = int(grp['H'].sum())
+        er     = int(grp['ER'].sum())
+        bb     = int(grp['BB'].sum())
+        so     = int(grp['SO'].sum())
+        team   = grp.sort_values('G', ascending=False).iloc[0]['teamID']
+        lg     = grp.sort_values('G', ascending=False).iloc[0]['lgID']
+        ip     = round(ipouts / 3, 1)
+        era    = round((er * 27) / ipouts, 2) if ipouts > 0 else 0.0
+        whip   = round((bb + h) / ip, 2) if ip > 0 else 0.0
+        return pd.Series({
+            'teamID': team, 'lgID': lg,
+            'W': w, 'L': l, 'G': g, 'GS': gs, 'CG': cg, 'SV': sv,
+            'IPouts': ipouts, 'IP': ip, 'H': h, 'ER': er,
+            'BB': bb, 'SO': so, 'ERA': era, 'WHIP': whip,
+        })
 
-    pit = pit.groupby(['playerID','yearID'], as_index=False).apply(pit_agg)
+    try:
+        pit = pit.groupby(['playerID','yearID'], as_index=False).apply(pit_agg, include_groups=False)
+    except TypeError:
+        pit = pit.groupby(['playerID','yearID'], as_index=False).apply(pit_agg)
     pit = pit.sort_values(['playerID','yearID'])
 
     # ── People: build name lookup ──
@@ -418,7 +451,10 @@ def load_mlb_data():
 try:
     load_mlb_data()
 except Exception as e:
+    import traceback
     print(f"[MLB] Load error: {e}")
+    print(traceback.format_exc())
+    print("[MLB] Continuing without MLB data — routes will return 500 until data loads")
 
 # ---------------------------------------------------------------------------
 # Page routes
