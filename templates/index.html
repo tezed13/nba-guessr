@@ -259,17 +259,23 @@
               <button class="play-btn">Play →</button>
             </div>
           </div>
-          <div class="card c-green" style="opacity:0.4;cursor:default">
+          <div class="card c-green" onclick="window.location.href='/mlb_spin'">
             <div class="card-bar"></div>
             <div class="card-body">
-              <div class="card-tag">Coming Soon</div>
+              <div class="card-tag">Guess the Leader</div>
               <div class="card-title">MLB Spin</div>
-              <div class="card-desc">Guess the season stat leader. Stat, season, position, league — revealed one by one.</div>
+              <div class="card-desc">Who led the league in that stat that season? Batting and pitching — clues drop one by one.</div>
               <div class="streaks">
-                <div class="sk"><div class="sk-label">Best Streak</div><div class="sk-val">—</div></div>
-                <div class="sk"><div class="sk-label">Current</div><div class="sk-val">—</div></div>
+                <div class="sk">
+                  <div class="sk-label">Best Streak</div>
+                  <div class="sk-val" id="mlb-s-best">0</div>
+                </div>
+                <div class="sk">
+                  <div class="sk-label">Current</div>
+                  <div class="sk-val" id="mlb-s-cur">0</div>
+                </div>
               </div>
-              <button class="play-btn" disabled style="opacity:0.4;cursor:not-allowed">Soon →</button>
+              <button class="play-btn">Play →</button>
             </div>
           </div>
         </div>
@@ -411,6 +417,7 @@
       'nba-s-best': 'spin_best',      'nba-s-cur': 'spin_cur',
       'nfl-g-best': 'nfl_guessr_best','nfl-g-cur': 'nfl_guessr_cur',
       'mlb-g-best': 'mlb_guessr_best','mlb-g-cur': 'mlb_guessr_cur',
+      'mlb-s-best': 'mlb_spin_best',   'mlb-s-cur': 'mlb_spin_cur',
       'nfl-s-best': 'nfl_spin_best',  'nfl-s-cur': 'nfl_spin_cur',
     };
     Object.entries(STREAK_MAP).forEach(([id, key]) => {

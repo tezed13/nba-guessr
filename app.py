@@ -976,6 +976,121 @@ async def mlb_random_player(
         print(f"CRASH /mlb/random_player: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
+
+# MLB spin stat maps
+MLB_BAT_SPIN = {
+    'HR':  'Home Runs',
+    'RBI': 'RBIs',
+    'H':   'Hits',
+    'R':   'Runs Scored',
+    'SB':  'Stolen Bases',
+    'BB':  'Walks',
+    'SO':  'Strikeouts',
+    'AVG': 'Batting Average',
+    'OPS': 'OPS',
+}
+MLB_PIT_SPIN = {
+    'W':    'Wins',
+    'SO':   'Strikeouts',
+    'SV':   'Saves',
+    'ERA':  'ERA',
+    'IP':   'Innings Pitched',
+    'WHIP': 'WHIP',
+}
+# Stats where LOWEST value wins
+MLB_LOW_BEST = {'ERA', 'WHIP'}
+
+@app.get("/mlb_spin", response_class=HTMLResponse)
+async def mlb_spin_page(request: Request):
+    return templates.TemplateResponse(request, "mlb_spin.html")
+
+
+@app.get("/mlb/spin_data")
+async def mlb_spin_data():
+    if mlb_batting_df.empty and mlb_pitching_df.empty:
+        return JSONResponse({"error": "MLB data not loaded"}, status_code=500)
+    try:
+        # Randomly pick batting or pitching category
+        use_pitching = random.random() < 0.4   # 40% pitching, 60% batting
+        if use_pitching and not mlb_pitching_df.empty:
+            df       = mlb_pitching_df.copy()
+            stat_map = MLB_PIT_SPIN
+            pool_type = "pitcher"
+        else:
+            df       = mlb_batting_df.copy()
+            stat_map = MLB_BAT_SPIN
+            pool_type = "batter"
+
+        available = [k for k in stat_map if k in df.columns]
+        if not available:
+            return JSONResponse({"error": "No matching stat columns"}, status_code=500)
+
+        stat_key = random.choice(available)
+        low_best = stat_key in MLB_LOW_BEST
+
+        seasons = df['yearID'].dropna().unique().tolist()
+
+        for _ in range(30):
+            chosen_season = int(random.choice(seasons))
+            szn = df[df['yearID'] == chosen_season].copy()
+            szn = szn[pd.to_numeric(szn[stat_key], errors='coerce').notna()]
+
+            # Minimum qualification thresholds
+            if stat_key in ('AVG', 'OBP', 'SLG', 'OPS'):
+                szn = szn[szn['AB'].fillna(0) >= 300]
+            elif stat_key in ('ERA', 'WHIP'):
+                szn = szn[szn['IP'].fillna(0) >= 100]
+            elif stat_key == 'SV':
+                szn = szn[szn['SV'].fillna(0) >= 5]
+            elif stat_key == 'IP':
+                szn = szn[szn['IP'].fillna(0) >= 100]
+            elif pool_type == 'batter':
+                szn = szn[szn['AB'].fillna(0) >= 200]
+            else:
+                szn = szn[szn['G'].fillna(0) >= 10]
+
+            szn[stat_key] = pd.to_numeric(szn[stat_key], errors='coerce')
+            szn = szn.dropna(subset=[stat_key])
+            if not szn.empty:
+                break
+        else:
+            return JSONResponse({"error": "Could not find valid season/stat"}, status_code=500)
+
+        # Find leader — lowest for ERA/WHIP, highest for everything else
+        if low_best:
+            leader = szn.loc[szn[stat_key].idxmin()]
+        else:
+            leader = szn.loc[szn[stat_key].idxmax()]
+
+        val = float(leader[stat_key])
+        if stat_key in ('AVG', 'OBP', 'SLG', 'OPS'):
+            val_str = f"{val:.3f}".lstrip('0') if val < 1 else f"{val:.3f}"
+        elif stat_key in ('ERA', 'WHIP'):
+            val_str = f"{val:.2f}"
+        elif stat_key == 'IP':
+            val_str = f"{val:.1f}"
+        else:
+            val_str = str(int(val))
+
+        team   = str(leader.get('teamID', '?'))
+        league = str(leader.get('lgID', '?'))
+        pos    = 'P' if pool_type == 'pitcher' else 'Batter'
+
+        return JSONResponse({
+            "winner": leader["player_name"],
+            "clues": {
+                "stat_name": stat_map[stat_key],
+                "stat_val":  val_str,
+                "season":    str(chosen_season),
+                "pos":       pos,
+                "league":    league,
+                "low_best":  low_best,
+            },
+        })
+    except Exception as e:
+        print(f"CRASH /mlb/spin_data: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 @app.get("/debug_columns")
 async def debug_columns():
     safe = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
