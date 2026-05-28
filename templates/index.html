@@ -236,6 +236,45 @@
         </div>
       </div>
 
+      <!-- MLB -->
+      <div id="mlb-section" style="display:none">
+        <p class="sport-label">⚾ MLB Games</p>
+        <div class="cards">
+          <div class="card c-green" onclick="showDiff('mlb')">
+            <div class="card-bar"></div>
+            <div class="card-body">
+              <div class="card-tag">Guess the Career</div>
+              <div class="card-title">MLB Guessr</div>
+              <div class="card-desc">Career stats, no name. Hitters or pitchers — traditional stats going back to the dead ball era.</div>
+              <div class="streaks">
+                <div class="sk">
+                  <div class="sk-label">Best Streak</div>
+                  <div class="sk-val" id="mlb-g-best">0</div>
+                </div>
+                <div class="sk">
+                  <div class="sk-label">Current</div>
+                  <div class="sk-val" id="mlb-g-cur">0</div>
+                </div>
+              </div>
+              <button class="play-btn">Play →</button>
+            </div>
+          </div>
+          <div class="card c-green" style="opacity:0.4;cursor:default">
+            <div class="card-bar"></div>
+            <div class="card-body">
+              <div class="card-tag">Coming Soon</div>
+              <div class="card-title">MLB Spin</div>
+              <div class="card-desc">Guess the season stat leader. Stat, season, position, league — revealed one by one.</div>
+              <div class="streaks">
+                <div class="sk"><div class="sk-label">Best Streak</div><div class="sk-val">—</div></div>
+                <div class="sk"><div class="sk-label">Current</div><div class="sk-val">—</div></div>
+              </div>
+              <button class="play-btn" disabled style="opacity:0.4;cursor:not-allowed">Soon →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- NFL -->
       <div id="nfl-section" style="display:none">
         <p class="sport-label">🏈 NFL Games</p>
