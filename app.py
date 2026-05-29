@@ -2,6 +2,11 @@ import random
 import re
 import math
 import sqlite3
+import hmac
+import hashlib
+import time
+import secrets
+import os
 import requests
 import pandas as pd
 from pathlib import Path
@@ -9,6 +14,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
@@ -18,8 +24,54 @@ from pydantic import BaseModel
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI()
+
+# ---------------------------------------------------------------------------
+# CORS — restrict to your own origin in production
+# ---------------------------------------------------------------------------
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "").split(",")
+if not any(ALLOWED_ORIGINS):
+    ALLOWED_ORIGINS = ["*"]   # dev fallback; set ALLOWED_ORIGINS env var in prod
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+# ---------------------------------------------------------------------------
+# Game-token signing (prevents arbitrary score submission)
+# ---------------------------------------------------------------------------
+
+LEADERBOARD_SECRET = os.environ.get("LEADERBOARD_SECRET", secrets.token_hex(32))
+VALID_CATEGORIES   = {"nba", "nfl", "mlb"}
+
+def _sign(category: str, issued_at: int) -> str:
+    msg = f"{category}:{issued_at}"
+    return hmac.new(LEADERBOARD_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+
+def make_game_token(category: str) -> str:
+    ts = int(time.time())
+    return f"{category}:{ts}:{_sign(category, ts)}"
+
+def verify_game_token(token: str, category: str, max_age: int = 7200) -> bool:
+    """Return True only if the token is valid, untampered, and not expired."""
+    try:
+        parts = token.split(":")
+        if len(parts) != 3:
+            return False
+        tok_cat, ts_str, sig = parts
+        if tok_cat != category:
+            return False
+        ts = int(ts_str)
+        if time.time() - ts > max_age:
+            return False
+        return hmac.compare_digest(_sign(category, ts), sig)
+    except Exception:
+        return False
 
 # ---------------------------------------------------------------------------
 # Leaderboard DB
@@ -504,9 +556,19 @@ class ScorePayload(BaseModel):
     name: str
     category: str
     streak: int
+    game_token: str   # required — issued by /game/start
+
+@app.get("/game/start")
+async def game_start(category: str = Query(...)):
+    """Issue a signed token when a new game round begins."""
+    if category not in VALID_CATEGORIES:
+        return JSONResponse({"error": "Invalid category"}, status_code=400)
+    return JSONResponse({"game_token": make_game_token(category)})
 
 @app.get("/leaderboard")
 async def get_leaderboard(category: str = Query(...)):
+    if category not in VALID_CATEGORIES:
+        return JSONResponse({"error": "Invalid category"}, status_code=400)
     with get_db() as conn:
         rows = conn.execute(
             """SELECT name, best_streak FROM scores
@@ -521,8 +583,16 @@ async def post_leaderboard(payload: ScorePayload):
     name     = payload.name.strip()[:20]
     category = payload.category.strip()
     streak   = max(0, int(payload.streak))
+
     if not name or not category:
         return JSONResponse({"error": "name and category required"}, status_code=400)
+
+    if category not in VALID_CATEGORIES:
+        return JSONResponse({"error": "Invalid category"}, status_code=400)
+
+    if not verify_game_token(payload.game_token, category):
+        return JSONResponse({"error": "Invalid or expired game token"}, status_code=403)
+
     with get_db() as conn:
         existing = conn.execute(
             "SELECT best_streak FROM scores WHERE name=? AND category=?",
@@ -645,7 +715,7 @@ async def random_player(
         })
     except Exception as e:
         print(f"CRASH /random_player: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
 # ---------------------------------------------------------------------------
 # NFL API routes
@@ -756,7 +826,7 @@ async def nfl_random_player(
         })
     except Exception as e:
         print(f"CRASH /nfl/random_player: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
 @app.get("/nfl/spin_data")
 async def nfl_spin_data():
@@ -813,7 +883,7 @@ async def nfl_spin_data():
         })
     except Exception as e:
         print(f"CRASH /nfl/spin_data: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
 # ---------------------------------------------------------------------------
 # NBA spin (unchanged)
@@ -864,7 +934,7 @@ async def spin_data():
         })
     except Exception as e:
         print(f"CRASH /spin_data: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
 # ---------------------------------------------------------------------------
 # NFL conference map
@@ -1010,7 +1080,7 @@ async def mlb_random_player(
 
     except Exception as e:
         print(f"CRASH /mlb/random_player: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
 
 # MLB spin stat maps
@@ -1125,10 +1195,6 @@ async def mlb_spin_data():
         })
     except Exception as e:
         print(f"CRASH /mlb/spin_data: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
-@app.get("/debug_columns")
-async def debug_columns():
-    safe = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
-            for k, v in stats_df.iloc[0].to_dict().items()} if not stats_df.empty else {}
-    return JSONResponse({"columns": stats_df.columns.tolist(), "sample_row": safe})
+

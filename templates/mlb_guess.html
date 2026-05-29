@@ -202,8 +202,10 @@
     }
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+    let gameToken = null;
+
     async function recordWin(catKey, name, currentStreak) {
-        try { await fetch('/leaderboard', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, category:catKey, streak:currentStreak}) }); }
+        try { await fetch('/leaderboard', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, category:catKey, streak:currentStreak, game_token: gameToken || ''}) }); }
         catch(e) { console.warn('LB save failed', e); }
     }
 
@@ -415,6 +417,7 @@
 
     async function loadPlayer() {
         resetUI();
+        gameToken = null;
         const tbody = document.getElementById('seasonsBody');
         tbody.innerHTML = Array(4).fill(
             `<tr>${Array(10).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
@@ -424,8 +427,11 @@
             if (!res.ok) { const e=await res.json(); throw new Error(e.error||'Server error'); }
             const data = await res.json();
             currentPlayerName = data.player_name;
+            try {
+                const tr = await fetch('/game/start?category=mlb');
+                if (tr.ok) { const td = await tr.json(); gameToken = td.game_token; }
+            } catch (_) {}
 
-            // Hint badges
             const badges = document.getElementById('hintBadges');
             badges.innerHTML = '';
             const bs  = 'display:inline-flex;align-items:center;gap:4px;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;color:#71717a';
@@ -555,7 +561,7 @@
     input.addEventListener('input', () => {
         const matches=matchPlayers(allPlayers,input.value);
         if(!matches.length){suggs.classList.add('hidden');return;}
-        suggs.innerHTML=matches.map((m,i)=>`<div class="sug-item" data-idx="${i}">${m}</div>`).join('');
+        suggs.innerHTML=matches.map((m,i)=>`<div class="sug-item" data-idx="${i}">${escHtml(m)}</div>`).join('');
         suggs._matches=matches;
         suggs.classList.remove('hidden');
     });

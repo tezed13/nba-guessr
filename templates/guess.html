@@ -467,7 +467,7 @@
             await fetch('/leaderboard', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, category: catKey, streak: currentStreak }),
+                body: JSON.stringify({ name, category: catKey, streak: currentStreak, game_token: gameToken || '' }),
             });
         } catch (err) {
             console.warn('Leaderboard save failed:', err);
@@ -584,6 +584,7 @@
     // ══════════════════════════════════════════════════════════════
 
     let currentPlayerName = "";
+    let gameToken   = null;
     let streak     = parseInt(localStorage.getItem('guessr_cur')  || '0');
     let bestStreak = parseInt(localStorage.getItem('guessr_best') || '0');
     let allPlayers = [];
@@ -726,6 +727,7 @@
     // ── Load player ──────────────────────────────────────────────
     async function loadPlayer() {
         resetUI();
+        gameToken = null;
         const tbody = document.getElementById('seasonsBody');
         tbody.innerHTML = Array(4).fill(
             `<tr>${Array(8).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
@@ -738,6 +740,11 @@
             if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
             const data = await res.json();
             currentPlayerName = data.player_name;
+            // Fetch a signed token for this game round
+            try {
+                const tr = await fetch('/game/start?category=nba');
+                if (tr.ok) { const td = await tr.json(); gameToken = td.game_token; }
+            } catch (_) {}
 
             const badges = document.getElementById('hintBadges');
             badges.innerHTML = '';
@@ -894,7 +901,7 @@
             const matches = matchPlayers(allPlayers, input.value);
             if (!matches.length) { suggs.classList.add('hidden'); return; }
             suggs.innerHTML = matches.map((m, i) =>
-                `<div class="sug-item" data-idx="${i}">${m}</div>`
+                `<div class="sug-item" data-idx="${i}">${escHtml(m)}</div>`
             ).join('');
             suggs._matches = matches;
             suggs.classList.remove('hidden');

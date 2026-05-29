@@ -115,6 +115,9 @@
     </div>
 
     <script>
+        function escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
         const NFL_CATEGORIES = [
             "Passing Yards","Passing TDs","Rushing Yards","Rushing TDs",
             "Receptions","Receiving Yards","Receiving TDs",
@@ -260,7 +263,7 @@
             const matches=matchPlayers(playerNames,input.value);
             if(!matches.length){suggs.classList.add('hidden');return;}
             suggs.innerHTML=matches.map((m,i)=>
-                `<div class="sug-item" data-idx="${i}">${m}</div>`
+                `<div class="sug-item" data-idx="${i}">${escHtml(m)}</div>`
             ).join('');
             suggs._matches=matches;
             suggs.classList.remove('hidden');
