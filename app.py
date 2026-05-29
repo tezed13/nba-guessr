@@ -326,12 +326,46 @@ def load_mlb_data():
 
     MLB_CACHE.mkdir(parents=True, exist_ok=True)
 
-    bat = _mlb_fetch("Batting.csv",      MLB_CACHE / "batting.parquet")
-    pit = _mlb_fetch("Pitching.csv",     MLB_CACHE / "pitching.parquet")
-    ppl = _mlb_fetch("People.csv",       MLB_CACHE / "people.parquet")
-    aw  = _mlb_fetch("AwardsPlayers.csv",MLB_CACHE / "awards.parquet")
-    hof = _mlb_fetch("HallOfFame.csv",   MLB_CACHE / "hof.parquet")
-    ast = _mlb_fetch("AllstarFull.csv",  MLB_CACHE / "allstar.parquet")
+    # ── Cache version check — bump this string to force a fresh download ──
+    CACHE_VERSION = "v2-al-nl-only"
+    version_file  = MLB_CACHE / "cache_version.txt"
+    if not version_file.exists() or version_file.read_text().strip() != CACHE_VERSION:
+        print(f"[MLB] Cache version mismatch — clearing stale cache for fresh download...")
+        import shutil
+        for f in MLB_CACHE.glob("*.parquet"):
+            f.unlink()
+        version_file.write_text(CACHE_VERSION)
+
+    bat  = _mlb_fetch("Batting.csv",      MLB_CACHE / "batting.parquet")
+    pit  = _mlb_fetch("Pitching.csv",     MLB_CACHE / "pitching.parquet")
+    ppl  = _mlb_fetch("People.csv",       MLB_CACHE / "people.parquet")
+    aw   = _mlb_fetch("AwardsPlayers.csv",MLB_CACHE / "awards.parquet")
+    hof  = _mlb_fetch("HallOfFame.csv",   MLB_CACHE / "hof.parquet")
+    ast  = _mlb_fetch("AllstarFull.csv",  MLB_CACHE / "allstar.parquet")
+    teams = _mlb_fetch("Teams.csv",       MLB_CACHE / "teams.parquet")
+
+    # Build teamID+yearID -> friendly name map  e.g. ('NYA', 1990) -> 'Yankees'
+    # Use the last word of the team name as the short form (Yankees, Mets, Athletics…)
+    team_name_map = {}
+    for _, tr in teams.iterrows():
+        tid  = str(tr.get('teamID', ''))
+        yr   = tr.get('yearID')
+        name = str(tr.get('name', ''))
+        if tid and name and name != 'nan':
+            short = name.split()[-1]   # "New York Yankees" -> "Yankees"
+            team_name_map[(tid, int(yr) if pd.notna(yr) else 0)] = short
+
+    def friendly_team(teamID, yearID):
+        """Return e.g. 'Yankees' for ('NYA', 1927), falling back to teamID."""
+        try:
+            yr = int(yearID)
+        except:
+            return str(teamID)
+        return team_name_map.get((str(teamID), yr), str(teamID))
+
+    # ── Filter to MLB leagues only (drop AA, NA, FL, UA, PL etc.) ──
+    bat = bat[bat['lgID'].isin(['AL', 'NL'])].copy()
+    pit = pit[pit['lgID'].isin(['AL', 'NL'])].copy()
 
     # ── Batting: sum stints per player/year, compute rate stats ──
     bat_cols = ['AB','H','BB','HBP','SF','X2B','X3B','HR','RBI','SB','R','G','SO']
@@ -385,8 +419,10 @@ def load_mlb_data():
     ppl['height_str'] = ppl['height'].apply(_ht)
     name_map = ppl.set_index('playerID')[['fullName','height_str','bats','throws']].to_dict('index')
 
-    bat['player_name'] = bat['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
-    pit['player_name'] = pit['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
+    bat['player_name']   = bat['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
+    pit['player_name']   = pit['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
+    bat['team_friendly'] = bat.apply(lambda r: friendly_team(r['teamID'], r['yearID']), axis=1)
+    pit['team_friendly'] = pit.apply(lambda r: friendly_team(r['teamID'], r['yearID']), axis=1)
 
     # ── Awards ──
     awards_dict = {}
@@ -928,7 +964,7 @@ async def mlb_random_player(
 
             if is_pitcher:
                 season_rows.append({
-                    "season": g("yearID"), "team": g("teamID"),
+                    "season": g("yearID"), "team": g("team_friendly") or g("teamID"),
                     "W":  g("W"),  "L":  g("L"),  "G":  g("G"),
                     "GS": g("GS"), "SV": g("SV"), "IP": g("IP"),
                     "H":  g("H"),  "BB": g("BB"), "SO": g("SO"),
@@ -936,7 +972,7 @@ async def mlb_random_player(
                 })
             else:
                 season_rows.append({
-                    "season": g("yearID"), "team": g("teamID"),
+                    "season": g("yearID"), "team": g("team_friendly") or g("teamID"),
                     "G":   g("G"),   "AB":  g("AB"),  "R":  g("R"),
                     "H":   g("H"),   "2B":  g("X2B"), "3B": g("X3B"),
                     "HR":  g("HR"),  "RBI": g("RBI"), "BB": g("BB"),
@@ -1072,7 +1108,7 @@ async def mlb_spin_data():
         else:
             val_str = str(int(val))
 
-        team   = str(leader.get('teamID', '?'))
+        team   = str(leader.get('team_friendly') or leader.get('teamID', '?'))
         league = str(leader.get('lgID', '?'))
         pos    = 'P' if pool_type == 'pitcher' else 'Batter'
 
