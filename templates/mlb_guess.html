@@ -439,9 +439,11 @@
             const bsG = bs+';border-color:#166534;color:#4ade80';
             const bsB = bs+';border-color:#1e3a5f;color:#60a5fa';
 
-            if (data.bats)   badges.innerHTML += `<span style="${bs}">🏏 Bats: ${data.bats}</span>`;
-            if (data.throws) badges.innerHTML += `<span style="${bs}">💪 Throws: ${data.throws}</span>`;
-            if (data.height) badges.innerHTML += `<span style="${bs}">📏 ${data.height}</span>`;
+            if (data.bats)     badges.innerHTML += `<span style="${bs}">🏏 Bats: ${data.bats}</span>`;
+            if (data.throws)   badges.innerHTML += `<span style="${bs}">💪 Throws: ${data.throws}</span>`;
+            if (data.height)   badges.innerHTML += `<span style="${bs}">📏 ${data.height}</span>`;
+            if (!data.is_pitcher && data.position)
+                               badges.innerHTML += `<span style="${bs}">🧤 ${data.position}</span>`;
 
             const aw = data.awards || {};
             if (aw.hof)            badges.innerHTML += `<span style="${bsY}">🏆 HOF</span>`;

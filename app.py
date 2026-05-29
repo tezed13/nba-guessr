@@ -336,9 +336,8 @@ NFL_STAT_MAP = {
 }
 
 # Position groups for difficulty tiers
-QB_POSITIONS  = {"QB"}
+QB_POSITIONS    = {"QB"}
 SKILL_POSITIONS = {"WR", "RB", "TE", "FB"}
-ALL_POSITIONS   = QB_POSITIONS | SKILL_POSITIONS | {"K", "P", "OL", "DL", "LB", "CB", "S", "DB", "DE", "DT"}
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +351,7 @@ mlb_batting_df  = pd.DataFrame()
 mlb_pitching_df = pd.DataFrame()
 mlb_people_df   = pd.DataFrame()
 mlb_awards_lkp  = {}
+mlb_name_map    = {}   # playerID -> {fullName, height_str, bats, throws, position}
 
 def _mlb_fetch(fname, cache_path):
     """Download a Lahman CSV or load from parquet cache."""
@@ -374,12 +374,12 @@ def _safe_int(series):
     return pd.to_numeric(series, errors='coerce').fillna(0).astype(int)
 
 def load_mlb_data():
-    global mlb_batting_df, mlb_pitching_df, mlb_people_df, mlb_awards_lkp
+    global mlb_batting_df, mlb_pitching_df, mlb_people_df, mlb_awards_lkp, mlb_name_map
 
     MLB_CACHE.mkdir(parents=True, exist_ok=True)
 
     # ── Cache version check — bump this string to force a fresh download ──
-    CACHE_VERSION = "v2-al-nl-only"
+    CACHE_VERSION = "v3-with-position"
     version_file  = MLB_CACHE / "cache_version.txt"
     if not version_file.exists() or version_file.read_text().strip() != CACHE_VERSION:
         print(f"[MLB] Cache version mismatch — clearing stale cache for fresh download...")
@@ -388,13 +388,26 @@ def load_mlb_data():
             f.unlink()
         version_file.write_text(CACHE_VERSION)
 
-    bat  = _mlb_fetch("Batting.csv",      MLB_CACHE / "batting.parquet")
-    pit  = _mlb_fetch("Pitching.csv",     MLB_CACHE / "pitching.parquet")
-    ppl  = _mlb_fetch("People.csv",       MLB_CACHE / "people.parquet")
-    aw   = _mlb_fetch("AwardsPlayers.csv",MLB_CACHE / "awards.parquet")
-    hof  = _mlb_fetch("HallOfFame.csv",   MLB_CACHE / "hof.parquet")
-    ast  = _mlb_fetch("AllstarFull.csv",  MLB_CACHE / "allstar.parquet")
-    teams = _mlb_fetch("Teams.csv",       MLB_CACHE / "teams.parquet")
+    bat      = _mlb_fetch("Batting.csv",      MLB_CACHE / "batting.parquet")
+    pit      = _mlb_fetch("Pitching.csv",     MLB_CACHE / "pitching.parquet")
+    ppl      = _mlb_fetch("People.csv",       MLB_CACHE / "people.parquet")
+    aw       = _mlb_fetch("AwardsPlayers.csv",MLB_CACHE / "awards.parquet")
+    hof      = _mlb_fetch("HallOfFame.csv",   MLB_CACHE / "hof.parquet")
+    ast      = _mlb_fetch("AllstarFull.csv",  MLB_CACHE / "allstar.parquet")
+    teams    = _mlb_fetch("Teams.csv",        MLB_CACHE / "teams.parquet")
+    fielding = _mlb_fetch("Fielding.csv",     MLB_CACHE / "fielding.parquet")
+
+    # ── Build primary position lookup (most games played at a position, excluding P) ──
+    fld_hit = fielding[fielding["POS"] != "P"].copy()
+    fld_hit["G"] = pd.to_numeric(fld_hit.get("G", 0), errors="coerce").fillna(0)
+    pos_lookup = (
+        fld_hit.groupby(["playerID", "POS"])["G"].sum()
+        .reset_index()
+        .sort_values("G", ascending=False)
+        .groupby("playerID")["POS"]
+        .first()
+        .to_dict()
+    )
 
     # Build teamID+yearID -> friendly name map  e.g. ('NYA', 1990) -> 'Yankees'
     # Use the last word of the team name as the short form (Yankees, Mets, Athletics…)
@@ -470,6 +483,10 @@ def load_mlb_data():
             return None
     ppl['height_str'] = ppl['height'].apply(_ht)
     name_map = ppl.set_index('playerID')[['fullName','height_str','bats','throws']].to_dict('index')
+    # Attach primary fielding position to name_map
+    for pid, pos in pos_lookup.items():
+        if pid in name_map:
+            name_map[pid]['position'] = pos
 
     bat['player_name']   = bat['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
     pit['player_name']   = pit['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
@@ -497,6 +514,7 @@ def load_mlb_data():
     mlb_pitching_df = pit
     mlb_people_df   = ppl
     mlb_awards_lkp  = awards_dict
+    mlb_name_map    = name_map
     print(f"[MLB] Ready — {len(bat)} batting rows, {len(pit)} pitching rows, {len(ppl)} players")
 
 try:
@@ -746,11 +764,13 @@ async def nfl_random_player(
             return JSONResponse({"error": "No players in this season range"}, status_code=404)
 
         t = types.lower().strip()
-        if t == "qb":
-            pool = pool[pool["position"] == "QB"]
-        elif t == "skill":
+        if t == "skill":
             pool = pool[pool["position"].isin(SKILL_POSITIONS)]
-        # "all" = no position filter
+        else:
+            # Default to QB for any other value (including "qb" and "all")
+            pool = pool[pool["position"].isin(QB_POSITIONS | SKILL_POSITIONS)]
+            if t == "qb":
+                pool = pool[pool["position"] == "QB"]
 
         if pool.empty:
             return JSONResponse({"error": "No players match this position filter"}, status_code=404)
@@ -767,7 +787,12 @@ async def nfl_random_player(
             pool["touches"] = pool["carries"].fillna(0) + pool["targets"].fillna(0)
             qual = pool[pool["player_display_name"].isin(five_plus) & (pool["touches"] >= 50)]
         else:
-            qual = pool[pool["player_display_name"].isin(five_plus)]
+            # "all" = QB + skill positions combined
+            pool = pool.copy()
+            pool["touches"] = pool["carries"].fillna(0) + pool["targets"].fillna(0)
+            qual_qb    = pool[(pool["position"] == "QB") & pool["player_display_name"].isin(five_plus) & (pool["attempts"] >= 100)]
+            qual_skill = pool[pool["position"].isin(SKILL_POSITIONS) & pool["player_display_name"].isin(five_plus) & (pool["touches"] >= 50)]
+            qual = pd.concat([qual_qb, qual_skill])
 
         eligible_pool = qual if not qual.empty else pool
         random_name   = random.choice(eligible_pool["player_display_name"].unique().tolist())
@@ -1056,15 +1081,17 @@ async def mlb_random_player(
 
         # People info
         prow = mlb_people_df[mlb_people_df["playerID"] == pid]
-        height = prow.iloc[0]["height_str"] if not prow.empty else None
-        bats   = prow.iloc[0]["bats"]       if not prow.empty else None
-        throws = prow.iloc[0]["throws"]     if not prow.empty else None
+        height   = prow.iloc[0]["height_str"] if not prow.empty else None
+        bats     = prow.iloc[0]["bats"]       if not prow.empty else None
+        throws   = prow.iloc[0]["throws"]     if not prow.empty else None
+        position = mlb_name_map.get(pid, {}).get("position") if not is_pitcher else None
 
         return JSONResponse({
             "player_name": random_name,
             "height":      height,
             "bats":        str(bats) if bats and str(bats) != 'nan' else None,
             "throws":      str(throws) if throws and str(throws) != 'nan' else None,
+            "position":    position,
             "is_pitcher":  is_pitcher,
             "awards": {
                 "mvp":          awards.get("most valuable player", 0),
