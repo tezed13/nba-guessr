@@ -405,178 +405,54 @@ SKILL_POSITIONS = {"WR", "RB", "TE", "FB"}
 # MLB — Load from Rdatasets Lahman CSVs at startup
 # ---------------------------------------------------------------------------
 
-MLB_BASE  = "https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/Lahman/"
 MLB_CACHE = BASE_DIR / "Data" / "mlb_cache"
 
 mlb_batting_df  = pd.DataFrame()
 mlb_pitching_df = pd.DataFrame()
 mlb_people_df   = pd.DataFrame()
 mlb_awards_lkp  = {}
-mlb_name_map    = {}   # playerID -> {fullName, height_str, bats, throws, position}
-
-def _mlb_fetch(fname, cache_path):
-    """Download a Lahman CSV or load from parquet cache."""
-    if cache_path.exists():
-        df = pd.read_parquet(cache_path)
-        print(f"[MLB] {fname} from cache: {len(df)} rows")
-        return df
-    print(f"[MLB] Downloading {fname}...")
-    r = requests.get(MLB_BASE + fname, timeout=60)
-    r.raise_for_status()
-    from io import StringIO
-    df = pd.read_csv(StringIO(r.text))
-    if 'rownames' in df.columns:
-        df = df.drop(columns=['rownames'])
-    df.to_parquet(cache_path, index=False)
-    print(f"[MLB] {fname} cached: {len(df)} rows")
-    return df
-
-def _safe_int(series):
-    return pd.to_numeric(series, errors='coerce').fillna(0).astype(int)
+mlb_name_map    = {}
 
 def load_mlb_data():
+    """Load pre-built parquets from disk. Run scripts/build_mlb_data.py locally to generate them."""
     global mlb_batting_df, mlb_pitching_df, mlb_people_df, mlb_awards_lkp, mlb_name_map
 
-    MLB_CACHE.mkdir(parents=True, exist_ok=True)
+    bat_path  = MLB_CACHE / "batting_final.parquet"
+    pit_path  = MLB_CACHE / "pitching_final.parquet"
+    ppl_path  = MLB_CACHE / "people_final.parquet"
+    aw_path   = MLB_CACHE / "awards_final.parquet"
 
-    # ── Cache version check — bump this string to force a fresh download ──
-    CACHE_VERSION = "v3-with-position"
-    version_file  = MLB_CACHE / "cache_version.txt"
-    if not version_file.exists() or version_file.read_text().strip() != CACHE_VERSION:
-        print(f"[MLB] Cache version mismatch — clearing stale cache for fresh download...")
-        import shutil
-        for f in MLB_CACHE.glob("*.parquet"):
-            f.unlink()
-        version_file.write_text(CACHE_VERSION)
+    missing = [p for p in [bat_path, pit_path, ppl_path, aw_path] if not p.exists()]
+    if missing:
+        print(f"[MLB] Missing pre-built files: {[p.name for p in missing]}")
+        print("[MLB] Run scripts/build_mlb_data.py locally and commit the parquet files.")
+        return
 
-    bat      = _mlb_fetch("Batting.csv",      MLB_CACHE / "batting.parquet")
-    pit      = _mlb_fetch("Pitching.csv",     MLB_CACHE / "pitching.parquet")
-    ppl      = _mlb_fetch("People.csv",       MLB_CACHE / "people.parquet")
-    aw       = _mlb_fetch("AwardsPlayers.csv",MLB_CACHE / "awards.parquet")
-    hof      = _mlb_fetch("HallOfFame.csv",   MLB_CACHE / "hof.parquet")
-    ast      = _mlb_fetch("AllstarFull.csv",  MLB_CACHE / "allstar.parquet")
-    teams    = _mlb_fetch("Teams.csv",        MLB_CACHE / "teams.parquet")
-    fielding = _mlb_fetch("Fielding.csv",     MLB_CACHE / "fielding.parquet")
+    mlb_batting_df  = pd.read_parquet(bat_path)
+    mlb_pitching_df = pd.read_parquet(pit_path)
+    mlb_people_df   = pd.read_parquet(ppl_path)
 
-    # ── Build primary position lookup (most games played at a position, excluding P) ──
-    fld_hit = fielding[fielding["POS"] != "P"].copy()
-    fld_hit["G"] = pd.to_numeric(fld_hit.get("G", 0), errors="coerce").fillna(0)
-    pos_lookup = (
-        fld_hit.groupby(["playerID", "POS"])["G"].sum()
-        .reset_index()
-        .sort_values("G", ascending=False)
-        .groupby("playerID")["POS"]
-        .first()
-        .to_dict()
-    )
+    # Rebuild lightweight dicts from the pre-built people table
+    for _, row in mlb_people_df.iterrows():
+        pid = row.get("playerID")
+        if pid:
+            mlb_name_map[pid] = {
+                "fullName":   row.get("fullName"),
+                "height_str": row.get("height_str"),
+                "bats":       row.get("bats"),
+                "throws":     row.get("throws"),
+                "position":   row.get("position"),
+            }
 
-    # Build teamID+yearID -> friendly name map  e.g. ('NYA', 1990) -> 'Yankees'
-    # Use the last word of the team name as the short form (Yankees, Mets, Athletics…)
-    team_name_map = {}
-    for _, tr in teams.iterrows():
-        tid  = str(tr.get('teamID', ''))
-        yr   = tr.get('yearID')
-        name = str(tr.get('name', ''))
-        if tid and name and name != 'nan':
-            short = name.split()[-1]   # "New York Yankees" -> "Yankees"
-            team_name_map[(tid, int(yr) if pd.notna(yr) else 0)] = short
+    # Awards stored as one row per playerID with counts as columns
+    aw_df = pd.read_parquet(aw_path)
+    for _, row in aw_df.iterrows():
+        pid = row.get("playerID")
+        if pid:
+            mlb_awards_lkp[pid] = {k: v for k, v in row.items() if k != "playerID"}
 
-    def friendly_team(teamID, yearID):
-        """Return e.g. 'Yankees' for ('NYA', 1927), falling back to teamID."""
-        try:
-            yr = int(yearID)
-        except:
-            return str(teamID)
-        return team_name_map.get((str(teamID), yr), str(teamID))
-
-    # ── Filter to MLB leagues only (drop AA, NA, FL, UA, PL etc.) ──
-    bat = bat[bat['lgID'].isin(['AL', 'NL'])].copy()
-    pit = pit[pit['lgID'].isin(['AL', 'NL'])].copy()
-
-    # ── Batting: sum stints per player/year, compute rate stats ──
-    bat_cols = ['AB','H','BB','HBP','SF','X2B','X3B','HR','RBI','SB','R','G','SO']
-    for c in bat_cols:
-        if c in bat.columns:
-            bat[c] = _safe_int(bat[c])
-    bat['yearID'] = pd.to_numeric(bat['yearID'], errors='coerce')
-
-    # Aggregate multi-team stints using simple groupby sum, then compute rates
-    bat_num = [c for c in bat_cols if c in bat.columns]
-    bat_agg = bat.groupby(['playerID','yearID'])[bat_num].sum().reset_index()
-
-    # Best team by games played
-    bat_team = (bat.sort_values('G', ascending=False)
-                   .groupby(['playerID','yearID'])[['teamID','lgID']]
-                   .first().reset_index())
-    bat = bat_agg.merge(bat_team, on=['playerID','yearID'], how='left')
-
-    bat['AVG'] = (bat['H'] / bat['AB'].replace(0, float('nan'))).round(3).fillna(0.0)
-    denom      = bat['AB'] + bat['BB'] + bat['HBP'] + bat['SF']
-    bat['OBP'] = ((bat['H'] + bat['BB'] + bat['HBP']) / denom.replace(0, float('nan'))).round(3).fillna(0.0)
-    tb         = bat['H'] + bat['X2B'] + 2*bat['X3B'] + 3*bat['HR']
-    bat['SLG'] = (tb / bat['AB'].replace(0, float('nan'))).round(3).fillna(0.0)
-    bat['OPS'] = (bat['OBP'] + bat['SLG']).round(3)
-
-    # ── Pitching: sum stints per player/year, compute ERA/WHIP ──
-    pit_cols = ['W','L','G','GS','CG','SV','IPouts','H','ER','BB','SO']
-    for c in pit_cols:
-        if c in pit.columns:
-            pit[c] = _safe_int(pit[c])
-    pit['yearID'] = pd.to_numeric(pit['yearID'], errors='coerce')
-
-    pit_agg = pit.groupby(['playerID','yearID'])[pit_cols].sum().reset_index()
-    pit_team = (pit.sort_values('G', ascending=False)
-                   .groupby(['playerID','yearID'])[['teamID','lgID']]
-                   .first().reset_index())
-    pit = pit_agg.merge(pit_team, on=['playerID','yearID'], how='left')
-
-    pit['IP']   = (pit['IPouts'] / 3).round(1)
-    pit['ERA']  = ((pit['ER'] * 27) / pit['IPouts'].replace(0, float('nan'))).round(2).fillna(0.0)
-    pit['WHIP'] = ((pit['BB'] + pit['H']) / pit['IP'].replace(0, float('nan'))).round(2).fillna(0.0)
-
-    # ── People: full name + physical info ──
-    ppl['fullName']   = (ppl['nameFirst'].fillna('') + ' ' + ppl['nameLast'].fillna('')).str.strip()
-    def _ht(v):
-        try:
-            vi = int(float(v))
-            return f"{vi//12}'{vi%12}\""
-        except:
-            return None
-    ppl['height_str'] = ppl['height'].apply(_ht)
-    name_map = ppl.set_index('playerID')[['fullName','height_str','bats','throws']].to_dict('index')
-    # Attach primary fielding position to name_map
-    for pid, pos in pos_lookup.items():
-        if pid in name_map:
-            name_map[pid]['position'] = pos
-
-    bat['player_name']   = bat['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
-    pit['player_name']   = pit['playerID'].map(lambda p: name_map.get(p,{}).get('fullName') or p)
-    bat['team_friendly'] = bat.apply(lambda r: friendly_team(r['teamID'], r['yearID']), axis=1)
-    pit['team_friendly'] = pit.apply(lambda r: friendly_team(r['teamID'], r['yearID']), axis=1)
-
-    # ── Awards ──
-    awards_dict = {}
-    for _, row in aw.iterrows():
-        pid = row.get('playerID')
-        if not pid: continue
-        if pid not in awards_dict: awards_dict[pid] = {}
-        aid = str(row.get('awardID','')).lower().strip()
-        awards_dict[pid][aid] = awards_dict[pid].get(aid, 0) + 1
-
-    for pid in set(hof[hof['inducted'] == 'Y']['playerID'].tolist()):
-        if pid not in awards_dict: awards_dict[pid] = {}
-        awards_dict[pid]['hof'] = 1
-
-    for pid, grp in ast.groupby('playerID'):
-        if pid not in awards_dict: awards_dict[pid] = {}
-        awards_dict[pid]['allstar'] = len(grp)
-
-    mlb_batting_df  = bat
-    mlb_pitching_df = pit
-    mlb_people_df   = ppl
-    mlb_awards_lkp  = awards_dict
-    mlb_name_map    = name_map
-    print(f"[MLB] Ready — {len(bat)} batting rows, {len(pit)} pitching rows, {len(ppl)} players")
+    print(f"[MLB] Ready — {len(mlb_batting_df)} batting rows, "
+          f"{len(mlb_pitching_df)} pitching rows, {len(mlb_people_df)} players")
 
 try:
     load_mlb_data()
