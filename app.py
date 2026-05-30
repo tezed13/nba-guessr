@@ -256,33 +256,55 @@ def load_nfl_data():
         import nflreadpy as nfl
 
         # ── Historical rosters 1966-present ───────────────────────────────
+        # Only keep the columns the app actually uses — saves ~70% memory
+        ROSTER_COLS = ["gsis_id", "season", "week", "full_name", "player_name",
+                       "position", "depth_chart_position", "team", "height", "college"]
+
         if cache_rosters.exists():
-            nfl_rosters_df = pd.read_parquet(cache_rosters)
+            nfl_rosters_df = pd.read_parquet(
+                cache_rosters,
+                columns=[c for c in ROSTER_COLS if c != "week"],  # week not needed after dedup
+            )
             print(f"[NFL] Rosters from cache: {len(nfl_rosters_df)} rows, "
                   f"seasons {nfl_rosters_df['season'].min()}-{nfl_rosters_df['season'].max()}")
         else:
             print("[NFL] Downloading rosters 1966-present (first run only)...")
             raw = nfl.load_rosters(seasons=list(range(1966, 2026)))
-            nfl_rosters_df = raw.to_pandas()
-            if "week" in nfl_rosters_df.columns:
-                nfl_rosters_df = (nfl_rosters_df
-                    .sort_values("week", ascending=False)
-                    .drop_duplicates(subset=["gsis_id", "season"], keep="first"))
+            df  = raw.to_pandas()
+            # Slim to needed columns before any heavy ops
+            keep = [c for c in ROSTER_COLS if c in df.columns]
+            df   = df[keep]
+            if "week" in df.columns:
+                df = (df.sort_values("week", ascending=False)
+                        .drop_duplicates(subset=["gsis_id", "season"], keep="first")
+                        .drop(columns=["week"], errors="ignore"))
             else:
-                nfl_rosters_df = nfl_rosters_df.drop_duplicates(
-                    subset=["gsis_id", "season"], keep="first")
-            nfl_rosters_df.to_parquet(cache_rosters, index=False)
+                df = df.drop_duplicates(subset=["gsis_id", "season"], keep="first")
+            df.to_parquet(cache_rosters, index=False)
+            nfl_rosters_df = df
             print(f"[NFL] Rosters cached: {len(nfl_rosters_df)} rows")
 
         # ── Detailed per-season offensive stats (1999-present) ────────────
+        STATS_COLS = ["player_id", "player_display_name", "season", "recent_team",
+                      "position", "attempts", "completions", "passing_yards",
+                      "passing_tds", "passing_interceptions", "carries",
+                      "rushing_yards", "rushing_tds", "receptions", "targets",
+                      "receiving_yards", "receiving_tds", "sack_fumbles"]
+
         if cache_stats.exists():
-            nfl_stats_df = pd.read_parquet(cache_stats)
+            nfl_stats_df = pd.read_parquet(
+                cache_stats,
+                columns=[c for c in STATS_COLS],
+            )
             print(f"[NFL] Stats from cache: {len(nfl_stats_df)} rows")
         else:
             print("[NFL] Downloading player stats 1999-present (~30s first run)...")
             raw = nfl.load_player_stats(seasons=True, summary_level="reg")
-            nfl_stats_df = raw.to_pandas()
-            nfl_stats_df.to_parquet(cache_stats, index=False)
+            df  = raw.to_pandas()
+            keep = [c for c in STATS_COLS if c in df.columns]
+            df   = df[keep]
+            df.to_parquet(cache_stats, index=False)
+            nfl_stats_df = df
             print(f"[NFL] Stats cached: {len(nfl_stats_df)} rows")
 
         # ── Draft picks — career awards: Pro Bowls, All-Pro, HOF ─────────
