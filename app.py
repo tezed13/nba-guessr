@@ -231,7 +231,7 @@ TEAM_TO_CONF_NBA = {
 # show as "—" in the season table.
 # ---------------------------------------------------------------------------
 
-NFL_CACHE = BASE_DIR / "Data" / "nfl_cache"
+NFL_CACHE = BASE_DIR / "Data"
 NFL_CACHE.mkdir(parents=True, exist_ok=True)
 
 nfl_stats_df    = pd.DataFrame()   # 1999-present detailed stats (per-season reg)
@@ -405,7 +405,7 @@ SKILL_POSITIONS = {"WR", "RB", "TE", "FB"}
 # MLB — Load from Rdatasets Lahman CSVs at startup
 # ---------------------------------------------------------------------------
 
-MLB_CACHE = BASE_DIR / "Data" / "mlb_cache"
+MLB_CACHE = BASE_DIR / "Data"
 
 mlb_batting_df  = pd.DataFrame()
 mlb_pitching_df = pd.DataFrame()
@@ -414,25 +414,107 @@ mlb_awards_lkp  = {}
 mlb_name_map    = {}
 
 def load_mlb_data():
-    """Load pre-built parquets from disk. Run scripts/build_mlb_data.py locally to generate them."""
+    """Load pre-built parquets. Builds any missing files from Lahman on first run."""
     global mlb_batting_df, mlb_pitching_df, mlb_people_df, mlb_awards_lkp, mlb_name_map
 
-    bat_path  = MLB_CACHE / "batting_final.parquet"
-    pit_path  = MLB_CACHE / "pitching_final.parquet"
-    ppl_path  = MLB_CACHE / "people_final.parquet"
-    aw_path   = MLB_CACHE / "awards_final.parquet"
+    bat_path = MLB_CACHE / "batting_final.parquet"
+    pit_path = MLB_CACHE / "pitching_final.parquet"
+    ppl_path = MLB_CACHE / "people_final.parquet"
+    aw_path  = MLB_CACHE / "awards_final.parquet"
+
+    LAHMAN = "https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/Lahman/"
+
+    def fetch_lahman(fname):
+        from io import StringIO
+        print(f"[MLB] Downloading {fname}...")
+        r = requests.get(LAHMAN + fname, timeout=60)
+        r.raise_for_status()
+        df = pd.read_csv(StringIO(r.text))
+        if "rownames" in df.columns:
+            df = df.drop(columns=["rownames"])
+        return df
+
+    def safe_int(s):
+        return pd.to_numeric(s, errors="coerce").fillna(0).astype(int)
+
+    if not bat_path.exists() or not aw_path.exists():
+        print("[MLB] Building missing parquets from Lahman...")
+
+        if ppl_path.exists():
+            ppl_tmp = pd.read_parquet(ppl_path)
+            name_map_tmp = ppl_tmp.set_index("playerID")[["fullName"]].to_dict("index")
+        else:
+            ppl_tmp = fetch_lahman("People.csv")
+            ppl_tmp["fullName"] = (ppl_tmp["nameFirst"].fillna("") + " " + ppl_tmp["nameLast"].fillna("")).str.strip()
+            name_map_tmp = ppl_tmp.set_index("playerID")[["fullName"]].to_dict("index")
+
+        teams = fetch_lahman("Teams.csv")
+        team_name_map = {}
+        for _, tr in teams.iterrows():
+            tid = str(tr.get("teamID", ""))
+            yr  = tr.get("yearID")
+            nm  = str(tr.get("name", ""))
+            if tid and nm and nm != "nan":
+                team_name_map[(tid, int(yr) if pd.notna(yr) else 0)] = nm.split()[-1]
+
+        def friendly_team(tid, yr):
+            try: return team_name_map.get((str(tid), int(yr)), str(tid))
+            except Exception: return str(tid)
+
+        if not bat_path.exists():
+            bat = fetch_lahman("Batting.csv")
+            bat = bat[bat["lgID"].isin(["AL", "NL"])].copy()
+            bat_cols = ["AB","H","BB","HBP","SF","X2B","X3B","HR","RBI","SB","R","G","SO"]
+            for c in bat_cols:
+                if c in bat.columns: bat[c] = safe_int(bat[c])
+            bat["yearID"] = pd.to_numeric(bat["yearID"], errors="coerce")
+            bat_num = [c for c in bat_cols if c in bat.columns]
+            bat_agg  = bat.groupby(["playerID","yearID"])[bat_num].sum().reset_index()
+            bat_team = (bat.sort_values("G", ascending=False)
+                           .groupby(["playerID","yearID"])[["teamID","lgID"]]
+                           .first().reset_index())
+            bat = bat_agg.merge(bat_team, on=["playerID","yearID"], how="left")
+            bat["AVG"] = (bat["H"] / bat["AB"].replace(0, float("nan"))).round(3).fillna(0.0)
+            denom = bat["AB"] + bat["BB"] + bat["HBP"] + bat["SF"]
+            bat["OBP"] = ((bat["H"] + bat["BB"] + bat["HBP"]) / denom.replace(0, float("nan"))).round(3).fillna(0.0)
+            tb = bat["H"] + bat["X2B"] + 2*bat["X3B"] + 3*bat["HR"]
+            bat["SLG"] = (tb / bat["AB"].replace(0, float("nan"))).round(3).fillna(0.0)
+            bat["OPS"] = (bat["OBP"] + bat["SLG"]).round(3)
+            bat["player_name"]   = bat["playerID"].map(lambda p: name_map_tmp.get(p, {}).get("fullName") or p)
+            bat["team_friendly"] = bat.apply(lambda r: friendly_team(r["teamID"], r["yearID"]), axis=1)
+            bat.to_parquet(bat_path, index=False)
+            print(f"[MLB] batting_final.parquet built: {len(bat)} rows")
+
+        if not aw_path.exists():
+            aw  = fetch_lahman("AwardsPlayers.csv")
+            hof = fetch_lahman("HallOfFame.csv")
+            ast = fetch_lahman("AllstarFull.csv")
+            awards_rows = {}
+            for _, row in aw.iterrows():
+                pid = row.get("playerID")
+                if not pid: continue
+                awards_rows.setdefault(pid, {})
+                aid = str(row.get("awardID", "")).lower().strip()
+                awards_rows[pid][aid] = awards_rows[pid].get(aid, 0) + 1
+            for pid in set(hof[hof["inducted"] == "Y"]["playerID"].tolist()):
+                awards_rows.setdefault(pid, {})
+                awards_rows[pid]["hof"] = 1
+            for pid, grp in ast.groupby("playerID"):
+                awards_rows.setdefault(pid, {})
+                awards_rows[pid]["allstar"] = len(grp)
+            aw_df = pd.DataFrame([{"playerID": pid, **vals} for pid, vals in awards_rows.items()]).fillna(0)
+            aw_df.to_parquet(aw_path, index=False)
+            print(f"[MLB] awards_final.parquet built: {len(aw_df)} rows")
 
     missing = [p for p in [bat_path, pit_path, ppl_path, aw_path] if not p.exists()]
     if missing:
-        print(f"[MLB] Missing pre-built files: {[p.name for p in missing]}")
-        print("[MLB] Run scripts/build_mlb_data.py locally and commit the parquet files.")
+        print(f"[MLB] Still missing after build attempt: {[p.name for p in missing]}")
         return
 
     mlb_batting_df  = pd.read_parquet(bat_path)
     mlb_pitching_df = pd.read_parquet(pit_path)
     mlb_people_df   = pd.read_parquet(ppl_path)
 
-    # Rebuild lightweight dicts from the pre-built people table
     for _, row in mlb_people_df.iterrows():
         pid = row.get("playerID")
         if pid:
@@ -444,7 +526,6 @@ def load_mlb_data():
                 "position":   row.get("position"),
             }
 
-    # Awards stored as one row per playerID with counts as columns
     aw_df = pd.read_parquet(aw_path)
     for _, row in aw_df.iterrows():
         pid = row.get("playerID")
@@ -791,13 +872,24 @@ async def nfl_random_player(
                 row["team"] = roster_szns[szn].get("team")
             season_rows.append(row)
 
+        def clean(v, default=None):
+            """Convert NaN/Inf/None to a JSON-safe value."""
+            if v is None: return default
+            try:
+                f = float(v)
+                if math.isnan(f) or math.isinf(f): return default
+                return int(f) if f == int(f) else f
+            except (TypeError, ValueError):
+                s = str(v)
+                return None if s in ("nan", "None", "") else s
+
         return JSONResponse({
             "player_name": random_name,
-            "position":    position,
-            "height":      pinfo.get("height"),
-            "college":     pinfo.get("college"),
-            "draft_pick":  dinfo.get("pick"),
-            "draft_round": dinfo.get("round"),
+            "position":    clean(position),
+            "height":      clean(pinfo.get("height")),
+            "college":     clean(pinfo.get("college")),
+            "draft_pick":  clean(dinfo.get("pick")),
+            "draft_round": clean(dinfo.get("round")),
             "awards": {
                 "probowls": int(dinfo.get("probowls", 0) or 0),
                 "allpro":   int(dinfo.get("allpro",   0) or 0),
