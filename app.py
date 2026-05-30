@@ -253,18 +253,19 @@ def load_nfl_data():
     cache_draft   = NFL_CACHE / "draft_picks.parquet"
 
     try:
+        import pyarrow.parquet as pq
         import nflreadpy as nfl
 
         # ── Historical rosters 1966-present ───────────────────────────────
         # Only keep the columns the app actually uses — saves ~70% memory
-        ROSTER_COLS = ["gsis_id", "season", "week", "full_name", "player_name",
+        ROSTER_COLS = ["gsis_id", "season", "full_name", "player_name",
                        "position", "depth_chart_position", "team", "height", "college"]
 
         if cache_rosters.exists():
-            nfl_rosters_df = pd.read_parquet(
-                cache_rosters,
-                columns=[c for c in ROSTER_COLS if c != "week"],  # week not needed after dedup
-            )
+            import pyarrow.parquet as pq
+            available = pq.read_schema(cache_rosters).names
+            read_cols = [c for c in ROSTER_COLS if c in available and c != "week"]
+            nfl_rosters_df = pd.read_parquet(cache_rosters, columns=read_cols)
             print(f"[NFL] Rosters from cache: {len(nfl_rosters_df)} rows, "
                   f"seasons {nfl_rosters_df['season'].min()}-{nfl_rosters_df['season'].max()}")
         else:
@@ -292,10 +293,9 @@ def load_nfl_data():
                       "receiving_yards", "receiving_tds", "sack_fumbles"]
 
         if cache_stats.exists():
-            nfl_stats_df = pd.read_parquet(
-                cache_stats,
-                columns=[c for c in STATS_COLS],
-            )
+            available = pq.read_schema(cache_stats).names
+            read_cols = [c for c in STATS_COLS if c in available]
+            nfl_stats_df = pd.read_parquet(cache_stats, columns=read_cols)
             print(f"[NFL] Stats from cache: {len(nfl_stats_df)} rows")
         else:
             print("[NFL] Downloading player stats 1999-present (~30s first run)...")
@@ -566,7 +566,7 @@ async def guess_page(
 @app.get("/nfl_guess", response_class=HTMLResponse)
 async def nfl_guess_page(
     request: Request,
-    start_season: int = Query(1966),
+    start_season: int = Query(1970),
     end_season: int = Query(2024),
     types: str = Query("qb"),
 ):
@@ -669,7 +669,7 @@ async def random_player(
             return JSONResponse({"error": "Database is empty"}, status_code=500)
         clean_types = types.replace("[","").replace("]","").replace("'","").replace('"',"")
         type_list = [t.strip() for t in clean_types.split(",")]
-        mask = (stats_df["season"] >= start_season) & (stats_df["season"] <= end_season)
+        mask = (stats_df["season"] >= max(start_season, 1950)) & (stats_df["season"] <= end_season)
         pool = stats_df[mask]
         if pool.empty:
             return JSONResponse({"error": "No players in this year range"}, status_code=404)
@@ -698,7 +698,7 @@ async def random_player(
 
         def normalize_career(df):
             rows = []
-            seasons = sorted(df["season"].unique())
+            seasons = sorted(df["season"].unique())   # ascending: oldest first
             for i, szn in enumerate(seasons):
                 szn_rows = df[df["season"] == szn]
                 multi = szn_rows["team"].str.match(r"\d+TM", na=False)
@@ -706,22 +706,57 @@ async def random_player(
                     real_rows = szn_rows[~multi].copy()
                     if real_rows.empty:
                         rows.append(szn_rows.iloc[0]); continue
-                    anchor = None
-                    if i + 1 < len(seasons):
-                        nxt = df[df["season"] == seasons[i+1]]
-                        nt  = nxt[~nxt["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
-                        if nt: anchor = nt[0]
-                    if anchor is None and i > 0:
-                        prv = df[df["season"] == seasons[i-1]]
+
+                    # In the final display seasons are descending (newest on top).
+                    # We want the row whose team matches the ADJACENT season to sit
+                    # next to it visually.
+                    #
+                    # For a given season szn, the season displayed directly BELOW it
+                    # is szn-1 (the older year, index i-1 in ascending array).
+                    # The season displayed directly ABOVE it is szn+1 (index i+1).
+                    #
+                    # Strategy: find which team in this multi-team year matches the
+                    # year before (i-1). Put that team at the BOTTOM of this year's
+                    # rows so it sits adjacent to the older season below it.
+                    # If no match below, try matching the year after (i+1) and put
+                    # that team at the TOP so it's adjacent to the newer season above.
+
+                    bottom_anchor = None   # team to place at bottom (matches older year)
+                    top_anchor    = None   # team to place at top    (matches newer year)
+
+                    if i > 0:
+                        prv = df[df["season"] == seasons[i - 1]]
                         pt  = prv[~prv["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
-                        if pt: anchor = pt[-1]
-                    if anchor:
-                        ordered = pd.concat([real_rows[real_rows["team"] != anchor], real_rows[real_rows["team"] == anchor]])
+                        if pt and pt[-1] in real_rows["team"].values:
+                            bottom_anchor = pt[-1]
+
+                    if i + 1 < len(seasons):
+                        nxt = df[df["season"] == seasons[i + 1]]
+                        nt  = nxt[~nxt["team"].str.match(r"\d+TM", na=False)]["team"].tolist()
+                        if nt and nt[0] in real_rows["team"].values:
+                            top_anchor = nt[0]
+
+                    if bottom_anchor:
+                        # Matching row goes last (bottom), others go first (top)
+                        ordered = pd.concat([
+                            real_rows[real_rows["team"] != bottom_anchor],
+                            real_rows[real_rows["team"] == bottom_anchor],
+                        ])
+                    elif top_anchor:
+                        # Matching row goes first (top), others go last (bottom)
+                        ordered = pd.concat([
+                            real_rows[real_rows["team"] == top_anchor],
+                            real_rows[real_rows["team"] != top_anchor],
+                        ])
                     else:
                         ordered = real_rows
-                    for _, r in ordered.iterrows(): rows.append(r)
+
+                    for _, r in ordered.iterrows():
+                        rows.append(r)
                 else:
-                    for _, r in szn_rows.iterrows(): rows.append(r)
+                    for _, r in szn_rows.iterrows():
+                        rows.append(r)
+
             return pd.DataFrame(rows).sort_values("season", ascending=False)
 
         career = normalize_career(career_raw)
@@ -770,7 +805,7 @@ async def nfl_all_players():
 
 @app.get("/nfl/random_player")
 async def nfl_random_player(
-    start_season: int = Query(1966),
+    start_season: int = Query(1970),
     end_season:   int = Query(2024),
     types: str = Query("qb"),   # qb | skill | all
 ):
@@ -820,6 +855,71 @@ async def nfl_random_player(
                     or (player_rows[pos_col].dropna().mode().iloc[0]
                         if not player_rows[pos_col].dropna().empty else None))
 
+        def nfl_normalize_seasons(roster_szns, stats_szns):
+            """
+            Order multi-team seasons so the row matching the adjacent year's team
+            sits closest to it visually (display is newest-first / descending).
+            """
+            all_szns = sorted(set(roster_szns) | set(stats_szns))  # ascending
+
+            # Build per-season buckets
+            szn_buckets = {}
+            for szn in all_szns:
+                if szn in stats_szns:
+                    rows = stats_szns[szn] if isinstance(stats_szns[szn], list) else [stats_szns[szn]]
+                else:
+                    rows = [roster_szns.get(szn, {"season": szn})]
+                for r in rows:
+                    if not r.get("team") and szn in roster_szns:
+                        r["team"] = roster_szns[szn].get("team")
+                szn_buckets[szn] = rows
+
+            # For each season, decide ordering of its rows.
+            # Display is descending so within a season:
+            #   top_anchor (matches newer season above) → goes FIRST in bucket
+            #   bottom_anchor (matches older season below) → goes LAST in bucket
+            ordered_buckets = {}
+            for i, szn in enumerate(all_szns):
+                bucket = szn_buckets[szn]
+                if len(bucket) == 1:
+                    ordered_buckets[szn] = bucket
+                    continue
+
+                teams = [r.get("team") for r in bucket]
+
+                # Newer season is displayed above → its team should be at TOP of this bucket
+                top_anchor = None
+                if i + 1 < len(all_szns):
+                    newer_bucket = szn_buckets[all_szns[i + 1]]
+                    newer_team = newer_bucket[0].get("team")
+                    if newer_team and newer_team in teams:
+                        top_anchor = newer_team
+
+                # Older season is displayed below → its team should be at BOTTOM of this bucket
+                bottom_anchor = None
+                if i > 0:
+                    older_bucket = szn_buckets[all_szns[i - 1]]
+                    older_team = older_bucket[-1].get("team")
+                    if older_team and older_team in teams:
+                        bottom_anchor = older_team
+
+                if top_anchor:
+                    ordered = [r for r in bucket if r.get("team") == top_anchor] + \
+                              [r for r in bucket if r.get("team") != top_anchor]
+                elif bottom_anchor:
+                    ordered = [r for r in bucket if r.get("team") != bottom_anchor] + \
+                              [r for r in bucket if r.get("team") == bottom_anchor]
+                else:
+                    ordered = bucket
+
+                ordered_buckets[szn] = ordered
+
+            # Output descending (newest first)
+            result = []
+            for szn in reversed(all_szns):
+                result.extend(ordered_buckets[szn])
+            return result
+
         # ── Build season table ─────────────────────────────────────────────
         # Start with roster seasons (gives team + position for every year)
         roster_szns = {}
@@ -830,7 +930,7 @@ async def nfl_random_player(
             if szn:
                 roster_szns[szn] = {"season": szn, "team": team or None, "position": pos or None}
 
-        # Overlay 1999+ detailed stats where available
+        # Overlay 1999+ detailed stats — collect ALL rows per season (handles trades)
         stats_szns = {}
         if not nfl_stats_df.empty:
             career_stats = nfl_stats_df[nfl_stats_df["player_display_name"] == random_name].copy()
@@ -844,7 +944,7 @@ async def nfl_random_player(
                     return v
                 szn = int(row["season"]) if pd.notna(row.get("season")) else None
                 if szn:
-                    stats_szns[szn] = {
+                    entry = {
                         "season":          szn,
                         "team":            g("recent_team"),
                         "position":        g("position"),
@@ -861,16 +961,16 @@ async def nfl_random_player(
                         "receiving_yards": g("receiving_yards"),
                         "receiving_tds":   g("receiving_tds"),
                     }
+                    # Multiple rows per season = traded; keep as list
+                    if szn in stats_szns:
+                        if isinstance(stats_szns[szn], list):
+                            stats_szns[szn].append(entry)
+                        else:
+                            stats_szns[szn] = [stats_szns[szn], entry]
+                    else:
+                        stats_szns[szn] = entry
 
-        # Merge: for any season in rosters, prefer detailed stats if available
-        all_seasons = sorted(set(roster_szns) | set(stats_szns), reverse=True)
-        season_rows = []
-        for szn in all_seasons:
-            row = stats_szns[szn] if szn in stats_szns else roster_szns.get(szn, {"season": szn})
-            # Fill team/position from roster if stats row is missing them
-            if not row.get("team") and szn in roster_szns:
-                row["team"] = roster_szns[szn].get("team")
-            season_rows.append(row)
+        season_rows = nfl_normalize_seasons(roster_szns, stats_szns)
 
         def clean(v, default=None):
             """Convert NaN/Inf/None to a JSON-safe value."""
@@ -1093,37 +1193,112 @@ async def mlb_random_player(
         random_pid  = random.choice(eligible["playerID"].unique().tolist())
         random_name = eligible[eligible["playerID"] == random_pid]["player_name"].iloc[0]
 
-        # Full career
-        career = df[df["playerID"] == random_pid].copy().sort_values("yearID", ascending=False)
-
-        # Build season rows
-        season_rows = []
-        for _, row in career.iterrows():
-            def g(col, default=None):
+        def mlb_normalize_seasons(career_df, is_pitcher):
+            """
+            Order multi-team seasons so the row matching the adjacent year's team
+            sits closest to it — same logic as NBA/NFL.
+            career_df is already filtered to one player, sorted ascending by yearID.
+            """
+            def g(row, col, default=None):
                 v = row.get(col, default)
                 if v is None: return default
                 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)): return default
                 return v
 
-            if is_pitcher:
-                season_rows.append({
-                    "season": g("yearID"), "team": g("team_friendly") or g("teamID"),
-                    "W":  g("W"),  "L":  g("L"),  "G":  g("G"),
-                    "GS": g("GS"), "SV": g("SV"), "IP": g("IP"),
-                    "H":  g("H"),  "BB": g("BB"), "SO": g("SO"),
-                    "ERA": g("ERA"), "WHIP": g("WHIP"),
-                })
-            else:
-                season_rows.append({
-                    "season": g("yearID"), "team": g("team_friendly") or g("teamID"),
-                    "G":   g("G"),   "AB":  g("AB"),  "R":  g("R"),
-                    "H":   g("H"),   "2B":  g("X2B"), "3B": g("X3B"),
-                    "HR":  g("HR"),  "RBI": g("RBI"), "BB": g("BB"),
-                    "SO":  g("SO"),  "SB":  g("SB"),
-                    "AVG": g("AVG"), "OBP": g("OBP"), "SLG": g("SLG"),
-                })
+            # Group rows by year
+            seasons = sorted(career_df["yearID"].dropna().unique())
+            szn_buckets = {}
+            for szn in seasons:
+                szn_rows = career_df[career_df["yearID"] == szn]
+                bucket = []
+                for _, row in szn_rows.iterrows():
+                    if is_pitcher:
+                        bucket.append({
+                            "season": g(row, "yearID"), "team": g(row, "team_friendly") or g(row, "teamID"),
+                            "W": g(row, "W"),  "L": g(row, "L"),  "G": g(row, "G"),
+                            "GS": g(row, "GS"), "SV": g(row, "SV"), "IP": g(row, "IP"),
+                            "H": g(row, "H"),  "BB": g(row, "BB"), "SO": g(row, "SO"),
+                            "ERA": g(row, "ERA"), "WHIP": g(row, "WHIP"),
+                        })
+                    else:
+                        bucket.append({
+                            "season": g(row, "yearID"), "team": g(row, "team_friendly") or g(row, "teamID"),
+                            "G":   g(row, "G"),   "AB":  g(row, "AB"),  "R":  g(row, "R"),
+                            "H":   g(row, "H"),   "2B":  g(row, "X2B"), "3B": g(row, "X3B"),
+                            "HR":  g(row, "HR"),  "RBI": g(row, "RBI"), "BB": g(row, "BB"),
+                            "SO":  g(row, "SO"),  "SB":  g(row, "SB"),
+                            "AVG": g(row, "AVG"), "OBP": g(row, "OBP"), "SLG": g(row, "SLG"),
+                        })
+                szn_buckets[int(szn)] = bucket
 
-        # Awards
+            result = []
+            szn_list = sorted(szn_buckets.keys())  # ascending
+            for i, szn in enumerate(szn_list):
+                bucket = szn_buckets[szn]
+                if len(bucket) == 1:
+                    result.append(bucket[0])
+                    continue
+
+                teams = [r.get("team") for r in bucket]
+
+                bottom_anchor = None
+                if i > 0:
+                    older_team = szn_buckets[szn_list[i - 1]][-1].get("team")
+                    if older_team and older_team in teams:
+                        bottom_anchor = older_team
+
+                top_anchor = None
+                if i + 1 < len(szn_list):
+                    newer_team = szn_buckets[szn_list[i + 1]][0].get("team")
+                    if newer_team and newer_team in teams:
+                        top_anchor = newer_team
+
+                if bottom_anchor:
+                    ordered = [r for r in bucket if r.get("team") != bottom_anchor] + \
+                              [r for r in bucket if r.get("team") == bottom_anchor]
+                elif top_anchor:
+                    ordered = [r for r in bucket if r.get("team") == top_anchor] + \
+                              [r for r in bucket if r.get("team") != top_anchor]
+                else:
+                    ordered = bucket
+
+                result.extend(ordered)
+
+            # Output descending (newest first)
+            ordered_buckets = {}
+            for i, szn in enumerate(szn_list):
+                bucket = szn_buckets[szn]
+                if len(bucket) == 1:
+                    ordered_buckets[szn] = bucket
+                    continue
+                teams = [r.get("team") for r in bucket]
+                top_anchor = None
+                if i + 1 < len(szn_list):
+                    newer_team = szn_buckets[szn_list[i + 1]][0].get("team")
+                    if newer_team and newer_team in teams:
+                        top_anchor = newer_team
+                bottom_anchor = None
+                if i > 0:
+                    older_team = szn_buckets[szn_list[i - 1]][-1].get("team")
+                    if older_team and older_team in teams:
+                        bottom_anchor = older_team
+                if top_anchor:
+                    ordered_buckets[szn] = [r for r in bucket if r.get("team") == top_anchor] + \
+                                           [r for r in bucket if r.get("team") != top_anchor]
+                elif bottom_anchor:
+                    ordered_buckets[szn] = [r for r in bucket if r.get("team") != bottom_anchor] + \
+                                           [r for r in bucket if r.get("team") == bottom_anchor]
+                else:
+                    ordered_buckets[szn] = bucket
+
+            final = []
+            for szn in reversed(szn_list):
+                final.extend(ordered_buckets.get(szn, szn_buckets[szn]))
+            return final
+
+        # Build season rows
+        career = df[df["playerID"] == random_pid].copy().sort_values("yearID")
+        season_rows = mlb_normalize_seasons(career, is_pitcher)
         pid    = random_pid
         awards = mlb_awards_lkp.get(pid, {})
 
