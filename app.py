@@ -221,13 +221,22 @@ TEAM_TO_CONF_NBA = {
 # ---------------------------------------------------------------------------
 # NFL — Load via nflreadpy at startup (cached to disk after first download)
 # ---------------------------------------------------------------------------
+# Data strategy:
+#   load_rosters(1966-present)       — one row per player-season: team/pos/height/college
+#   load_player_stats(1999-present)  — detailed per-season offensive stats
+#   load_draft_picks()               — career awards: Pro Bowls, All-Pro, HOF (1980+)
+#
+# For 1966-1998 seasons the game shows team and position from rosters; detailed
+# offensive stats are unavailable from nflverse for that era, so those columns
+# show as "—" in the season table.
+# ---------------------------------------------------------------------------
 
 NFL_CACHE = BASE_DIR / "Data" / "nfl_cache"
 NFL_CACHE.mkdir(parents=True, exist_ok=True)
 
-nfl_stats_df   = pd.DataFrame()
-nfl_players_df = pd.DataFrame()
-nfl_draft_df   = pd.DataFrame()
+nfl_stats_df    = pd.DataFrame()   # 1999-present detailed stats (per-season reg)
+nfl_rosters_df  = pd.DataFrame()   # 1966-present roster rows   (per-season)
+nfl_draft_df    = pd.DataFrame()   # draft picks + career awards
 
 def _sanitise(df: pd.DataFrame) -> pd.DataFrame:
     """Replace NaN/Inf so rows are JSON-safe."""
@@ -238,46 +247,54 @@ def _sanitise(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def load_nfl_data():
-    global nfl_stats_df, nfl_players_df, nfl_draft_df
+    global nfl_stats_df, nfl_rosters_df, nfl_draft_df
     cache_stats   = NFL_CACHE / "player_stats.parquet"
-    cache_players = NFL_CACHE / "players.parquet"
+    cache_rosters = NFL_CACHE / "rosters.parquet"
     cache_draft   = NFL_CACHE / "draft_picks.parquet"
 
     try:
         import nflreadpy as nfl
 
-        # ── Player stats (reg season, 1999-present) ───────────────────────
+        # ── Historical rosters 1966-present ───────────────────────────────
+        if cache_rosters.exists():
+            nfl_rosters_df = pd.read_parquet(cache_rosters)
+            print(f"[NFL] Rosters from cache: {len(nfl_rosters_df)} rows, "
+                  f"seasons {nfl_rosters_df['season'].min()}-{nfl_rosters_df['season'].max()}")
+        else:
+            print("[NFL] Downloading rosters 1966-present (first run only)...")
+            raw = nfl.load_rosters(seasons=list(range(1966, 2026)))
+            nfl_rosters_df = raw.to_pandas()
+            if "week" in nfl_rosters_df.columns:
+                nfl_rosters_df = (nfl_rosters_df
+                    .sort_values("week", ascending=False)
+                    .drop_duplicates(subset=["gsis_id", "season"], keep="first"))
+            else:
+                nfl_rosters_df = nfl_rosters_df.drop_duplicates(
+                    subset=["gsis_id", "season"], keep="first")
+            nfl_rosters_df.to_parquet(cache_rosters, index=False)
+            print(f"[NFL] Rosters cached: {len(nfl_rosters_df)} rows")
+
+        # ── Detailed per-season offensive stats (1999-present) ────────────
         if cache_stats.exists():
             nfl_stats_df = pd.read_parquet(cache_stats)
-            print(f"[NFL] Stats loaded from cache: {len(nfl_stats_df)} rows")
+            print(f"[NFL] Stats from cache: {len(nfl_stats_df)} rows")
         else:
-            print("[NFL] Downloading player stats (this takes ~30s first run)…")
+            print("[NFL] Downloading player stats 1999-present (~30s first run)...")
             raw = nfl.load_player_stats(seasons=True, summary_level="reg")
             nfl_stats_df = raw.to_pandas()
             nfl_stats_df.to_parquet(cache_stats, index=False)
-            print(f"[NFL] Stats downloaded & cached: {len(nfl_stats_df)} rows")
+            print(f"[NFL] Stats cached: {len(nfl_stats_df)} rows")
 
-        # ── Players info (height, position, draft) ────────────────────────
-        if cache_players.exists():
-            nfl_players_df = pd.read_parquet(cache_players)
-            print(f"[NFL] Players loaded from cache: {len(nfl_players_df)} rows")
-        else:
-            print("[NFL] Downloading player info…")
-            raw = nfl.load_players()
-            nfl_players_df = raw.to_pandas()
-            nfl_players_df.to_parquet(cache_players, index=False)
-            print(f"[NFL] Players downloaded & cached: {len(nfl_players_df)} rows")
-
-        # ── Draft picks (Pro Bowls, All-Pro, HOF) ─────────────────────────
+        # ── Draft picks — career awards: Pro Bowls, All-Pro, HOF ─────────
         if cache_draft.exists():
             nfl_draft_df = pd.read_parquet(cache_draft)
-            print(f"[NFL] Draft loaded from cache: {len(nfl_draft_df)} rows")
+            print(f"[NFL] Draft from cache: {len(nfl_draft_df)} rows")
         else:
-            print("[NFL] Downloading draft picks…")
+            print("[NFL] Downloading draft picks...")
             raw = nfl.load_draft_picks()
             nfl_draft_df = raw.to_pandas()
             nfl_draft_df.to_parquet(cache_draft, index=False)
-            print(f"[NFL] Draft downloaded & cached: {len(nfl_draft_df)} rows")
+            print(f"[NFL] Draft cached: {len(nfl_draft_df)} rows")
 
     except Exception as e:
         print(f"[NFL] Data load error: {e}")
@@ -285,43 +302,65 @@ def load_nfl_data():
 
 load_nfl_data()
 
-# Build fast lookup dicts from players + draft tables
-def build_nfl_lookups():
-    player_info = {}   # gsis_id -> {height_ft, position, draft_pick, draft_round}
-    draft_info  = {}   # gsis_id -> {probowls, allpro, hof}
+# ---------------------------------------------------------------------------
+# Build fast lookup dicts
+# ---------------------------------------------------------------------------
 
-    if not nfl_players_df.empty:
-        for _, row in nfl_players_df.iterrows():
-            gid = row.get("gsis_id")
-            if not gid: continue
-            h = row.get("height")  # already in inches
-            try:
-                hi = int(h)
-                h_str = f"{hi // 12}'{hi % 12}\""
-            except:
-                h_str = None
-            player_info[gid] = {
-                "height":       h_str,
-                "position":     row.get("position") or row.get("position_group"),
-                "college":      row.get("college_name"),
-                "display_name": row.get("display_name") or row.get("player_name"),
-            }
+def _inches_to_ft(val):
+    try:
+        hi = int(val)
+        return f"{hi // 12}\'{hi % 12}\""
+    except Exception:
+        return None
+
+def build_nfl_lookups():
+    player_info    = {}   # gsis_id  -> {height, position, college, display_name}
+    draft_info     = {}   # gsis_id  -> {pick, round, probowls, allpro, hof}
+    roster_seasons = {}   # name     -> [{season, team, position}, ...]
+
+    if not nfl_rosters_df.empty:
+        for _, row in nfl_rosters_df.iterrows():
+            gid  = row.get("gsis_id")
+            name = (row.get("full_name") or row.get("player_name")
+                    or row.get("display_name"))
+            pos  = row.get("position") or row.get("depth_chart_position")
+            team = row.get("team")
+            szn  = row.get("season")
+
+            if gid and gid not in player_info:
+                player_info[str(gid)] = {
+                    "height":       _inches_to_ft(row.get("height")),
+                    "position":     pos,
+                    "college":      row.get("college"),
+                    "display_name": name,
+                }
+
+            if name and szn:
+                roster_seasons.setdefault(name, []).append({
+                    "season":   int(szn)   if pd.notna(szn)  else None,
+                    "team":     str(team)  if pd.notna(team) else None,
+                    "position": str(pos)   if pd.notna(pos)  else None,
+                })
 
     if not nfl_draft_df.empty:
         for _, row in nfl_draft_df.iterrows():
-            gid = row.get("gsis_id")
-            if not gid: continue
-            draft_info[gid] = {
-                "pick":      row.get("pick"),
-                "round":     row.get("round"),
-                "probowls":  row.get("probowls", 0) or 0,
-                "allpro":    row.get("allpro", 0) or 0,
-                "hof":       bool(row.get("hof", False)),
+            gid   = row.get("gsis_id")
+            pname = row.get("player_name")
+            info  = {
+                "pick":     row.get("pick"),
+                "round":    row.get("round"),
+                "probowls": int(row.get("probowls") or 0),
+                "allpro":   int(row.get("allpro")   or 0),
+                "hof":      bool(row.get("hof", False)),
             }
+            if gid:
+                draft_info[str(gid)] = info
+            if pname:
+                draft_info.setdefault(f"name:{pname}", info)
 
-    return player_info, draft_info
+    return player_info, draft_info, roster_seasons
 
-nfl_player_info, nfl_draft_info = build_nfl_lookups()
+nfl_player_info, nfl_draft_info, nfl_roster_seasons = build_nfl_lookups()
 
 NFL_STAT_MAP = {
     "passing_yards":   "Passing Yards",
@@ -548,7 +587,7 @@ async def guess_page(
 @app.get("/nfl_guess", response_class=HTMLResponse)
 async def nfl_guess_page(
     request: Request,
-    start_season: int = Query(1999),
+    start_season: int = Query(1966),
     end_season: int = Query(2024),
     types: str = Query("qb"),
 ):
@@ -741,110 +780,129 @@ async def random_player(
 
 @app.get("/nfl/all_players")
 async def nfl_all_players():
-    if nfl_stats_df.empty:
-        return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
-    players = sorted(nfl_stats_df["player_display_name"].dropna().unique().tolist())
-    return players
+    # Use rosters as the primary name source (covers 1966+), fall back to stats
+    if not nfl_rosters_df.empty:
+        col = "full_name" if "full_name" in nfl_rosters_df.columns else "player_name"
+        players = sorted(nfl_rosters_df[col].dropna().unique().tolist())
+        return players
+    if not nfl_stats_df.empty:
+        return sorted(nfl_stats_df["player_display_name"].dropna().unique().tolist())
+    return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
 
 @app.get("/nfl/random_player")
 async def nfl_random_player(
-    start_season: int = Query(1999),
-    end_season: int = Query(2024),
+    start_season: int = Query(1966),
+    end_season:   int = Query(2024),
     types: str = Query("qb"),   # qb | skill | all
 ):
     try:
-        if nfl_stats_df.empty:
+        if nfl_rosters_df.empty:
             return JSONResponse({"error": "NFL data not loaded"}, status_code=500)
 
-        df = nfl_stats_df.copy()
-        mask = (df["season"] >= start_season) & (df["season"] <= end_season)
-        pool = df[mask]
-
-        if pool.empty:
-            return JSONResponse({"error": "No players in this season range"}, status_code=404)
-
         t = types.lower().strip()
-        if t == "skill":
-            pool = pool[pool["position"].isin(SKILL_POSITIONS)]
-        else:
-            # Default to QB for any other value (including "qb" and "all")
-            pool = pool[pool["position"].isin(QB_POSITIONS | SKILL_POSITIONS)]
-            if t == "qb":
-                pool = pool[pool["position"] == "QB"]
+        name_col = "full_name" if "full_name" in nfl_rosters_df.columns else "player_name"
 
-        if pool.empty:
-            return JSONResponse({"error": "No players match this position filter"}, status_code=404)
+        # ── Build pool from rosters (covers all of 1966-present) ──────────
+        roster_pool = nfl_rosters_df.copy()
+        mask = (roster_pool["season"] >= start_season) & (roster_pool["season"] <= end_season)
+        roster_pool = roster_pool[mask]
 
-        # Require at least 5 seasons in the filtered range
-        season_counts = pool.groupby("player_display_name")["season"].nunique()
-        five_plus     = season_counts[season_counts >= 5].index.tolist()
-
-        # Also require meaningful production in at least 1 season
+        pos_col = "position" if "position" in roster_pool.columns else "depth_chart_position"
         if t == "qb":
-            qual = pool[pool["player_display_name"].isin(five_plus) & (pool["attempts"] >= 100)]
+            roster_pool = roster_pool[roster_pool[pos_col] == "QB"]
         elif t == "skill":
-            pool = pool.copy()
-            pool["touches"] = pool["carries"].fillna(0) + pool["targets"].fillna(0)
-            qual = pool[pool["player_display_name"].isin(five_plus) & (pool["touches"] >= 50)]
+            roster_pool = roster_pool[roster_pool[pos_col].isin(SKILL_POSITIONS)]
         else:
-            # "all" = QB + skill positions combined
-            pool = pool.copy()
-            pool["touches"] = pool["carries"].fillna(0) + pool["targets"].fillna(0)
-            qual_qb    = pool[(pool["position"] == "QB") & pool["player_display_name"].isin(five_plus) & (pool["attempts"] >= 100)]
-            qual_skill = pool[pool["position"].isin(SKILL_POSITIONS) & pool["player_display_name"].isin(five_plus) & (pool["touches"] >= 50)]
-            qual = pd.concat([qual_qb, qual_skill])
+            roster_pool = roster_pool[roster_pool[pos_col].isin(QB_POSITIONS | SKILL_POSITIONS)]
 
-        eligible_pool = qual if not qual.empty else pool
-        random_name   = random.choice(eligible_pool["player_display_name"].unique().tolist())
+        if roster_pool.empty:
+            return JSONResponse({"error": "No players match this filter"}, status_code=404)
 
-        # Full career (all seasons in DB, not just filtered range)
-        career = nfl_stats_df[nfl_stats_df["player_display_name"] == random_name].copy()
-        career = career.sort_values("season", ascending=False)
+        # Require players who appeared in at least 5 seasons in the range
+        season_counts = roster_pool.groupby(name_col)["season"].nunique()
+        five_plus     = set(season_counts[season_counts >= 5].index.tolist())
+        eligible_names = list(five_plus) if five_plus else roster_pool[name_col].dropna().unique().tolist()
 
-        # Build per-season rows for the table
+        random_name = random.choice(eligible_names)
+
+        # ── Resolve gsis_id and metadata via rosters ──────────────────────
+        player_rows = nfl_rosters_df[nfl_rosters_df[name_col] == random_name]
+        gsis_id     = None
+        if "gsis_id" in player_rows.columns:
+            gid_vals = player_rows["gsis_id"].dropna()
+            if not gid_vals.empty:
+                gsis_id = str(gid_vals.iloc[0])
+
+        pinfo = nfl_player_info.get(gsis_id, {}) if gsis_id else {}
+        dinfo = (nfl_draft_info.get(gsis_id)
+                 or nfl_draft_info.get(f"name:{random_name}", {}))
+
+        position = (pinfo.get("position")
+                    or (player_rows[pos_col].dropna().mode().iloc[0]
+                        if not player_rows[pos_col].dropna().empty else None))
+
+        # ── Build season table ─────────────────────────────────────────────
+        # Start with roster seasons (gives team + position for every year)
+        roster_szns = {}
+        for _, row in player_rows.sort_values("season").iterrows():
+            szn  = int(row["season"]) if pd.notna(row.get("season")) else None
+            team = str(row.get("team", "") or "")
+            pos  = str(row.get(pos_col, "") or "")
+            if szn:
+                roster_szns[szn] = {"season": szn, "team": team or None, "position": pos or None}
+
+        # Overlay 1999+ detailed stats where available
+        stats_szns = {}
+        if not nfl_stats_df.empty:
+            career_stats = nfl_stats_df[nfl_stats_df["player_display_name"] == random_name].copy()
+            for _, row in career_stats.iterrows():
+                def g(col, default=None):
+                    v = row.get(col, default)
+                    if v is None: return default
+                    try:
+                        if math.isnan(float(v)) or math.isinf(float(v)): return default
+                    except Exception: pass
+                    return v
+                szn = int(row["season"]) if pd.notna(row.get("season")) else None
+                if szn:
+                    stats_szns[szn] = {
+                        "season":          szn,
+                        "team":            g("recent_team"),
+                        "position":        g("position"),
+                        "passing_yards":   g("passing_yards"),
+                        "passing_tds":     g("passing_tds"),
+                        "interceptions":   g("passing_interceptions"),
+                        "attempts":        g("attempts"),
+                        "completions":     g("completions"),
+                        "carries":         g("carries"),
+                        "rushing_yards":   g("rushing_yards"),
+                        "rushing_tds":     g("rushing_tds"),
+                        "receptions":      g("receptions"),
+                        "targets":         g("targets"),
+                        "receiving_yards": g("receiving_yards"),
+                        "receiving_tds":   g("receiving_tds"),
+                    }
+
+        # Merge: for any season in rosters, prefer detailed stats if available
+        all_seasons = sorted(set(roster_szns) | set(stats_szns), reverse=True)
         season_rows = []
-        for _, row in career.iterrows():
-            def g(col, default=None):
-                v = row.get(col, default)
-                if v is None: return default
-                if isinstance(v, float) and (math.isnan(v) or math.isinf(v)): return default
-                return v
-
-            season_rows.append({
-                "season":          g("season"),
-                "team":            g("recent_team"),
-                "position":        g("position"),
-                "passing_yards":   g("passing_yards"),
-                "passing_tds":     g("passing_tds"),
-                "interceptions":   g("passing_interceptions"),
-                "attempts":        g("attempts"),
-                "completions":     g("completions"),
-                "carries":         g("carries"),
-                "rushing_yards":   g("rushing_yards"),
-                "rushing_tds":     g("rushing_tds"),
-                "receptions":      g("receptions"),
-                "targets":         g("targets"),
-                "receiving_yards": g("receiving_yards"),
-                "receiving_tds":   g("receiving_tds"),
-                "sacks":           g("sack_fumbles"),
-            })
-
-        # Get player meta from lookup
-        # Match player_id (gsis format) to our lookup dicts
-        gsis_id = career["player_id"].iloc[0] if "player_id" in career.columns else None
-        pinfo   = nfl_player_info.get(str(gsis_id), {}) if gsis_id else {}
-        dinfo   = nfl_draft_info.get(str(gsis_id), {}) if gsis_id else {}
+        for szn in all_seasons:
+            row = stats_szns[szn] if szn in stats_szns else roster_szns.get(szn, {"season": szn})
+            # Fill team/position from roster if stats row is missing them
+            if not row.get("team") and szn in roster_szns:
+                row["team"] = roster_szns[szn].get("team")
+            season_rows.append(row)
 
         return JSONResponse({
             "player_name": random_name,
-            "position":    pinfo.get("position") or (career["position"].iloc[0] if "position" in career.columns else None),
+            "position":    position,
             "height":      pinfo.get("height"),
             "college":     pinfo.get("college"),
             "draft_pick":  dinfo.get("pick"),
             "draft_round": dinfo.get("round"),
             "awards": {
                 "probowls": int(dinfo.get("probowls", 0) or 0),
-                "allpro":   int(dinfo.get("allpro", 0) or 0),
+                "allpro":   int(dinfo.get("allpro",   0) or 0),
                 "hof":      bool(dinfo.get("hof", False)),
             },
             "seasons": season_rows,

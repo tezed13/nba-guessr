@@ -361,17 +361,21 @@
     let maxGuesses = parseInt(urlParams.get('max_guesses') || '3');
 
     const NFL_ERAS = [
-        { label:'2000s',    start:1999, end:2009 },
-        { label:'2010s',    start:2010, end:2019 },
-        { label:'2020s',    start:2020, end:2024 },
-        { label:'All Time', start:1999, end:2024 },
+        { label:"AFL/NFL ('66-'69)", start:1966, end:1969 },
+        { label:"'70s",              start:1970, end:1979 },
+        { label:"'80s",              start:1980, end:1989 },
+        { label:"'90s",              start:1990, end:1999 },
+        { label:"'00s",              start:2000, end:2009 },
+        { label:"'10s",              start:2010, end:2019 },
+        { label:"'20s",              start:2020, end:2024 },
+        { label:'All Time',          start:1966, end:2024 },
     ];
 
     const _urlStart = parseInt(document.getElementById('startSeason').value);
     const _urlEnd   = parseInt(document.getElementById('endSeason').value);
 
     function eraFromRange(start, end) {
-        if (start <= 1999 && end >= 2024) return [NFL_ERAS[NFL_ERAS.length - 1]];
+        if (start <= 1966 && end >= 2024) return [NFL_ERAS[NFL_ERAS.length - 1]];
         return NFL_ERAS.filter(e => e.start >= start && e.end <= end && e.label !== 'All Time');
     }
 
