@@ -313,48 +313,6 @@
     // ══════════════════════════════════════════════════════════════
     // LEADERBOARD (global, API-backed — identical pattern to NBA)
     // ══════════════════════════════════════════════════════════════
-    }
-
-            tbody.innerHTML = entries.map((e,i) => {
-                const isYou = savedName && e.name.toLowerCase()===savedName.toLowerCase();
-                const rc    = i===0?'rank-gold':i===1?'rank-silver':i===2?'rank-bronze':'';
-                const re    = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
-                return `<tr class="${isYou?'you-row':''}">
-                    <td class="rank ${rc}">${re}</td>
-                    <td class="name-cell">${escHtml(e.name)}${isYou?' <span style="font-size:10px;color:#52525b">(you)</span>':''}</td>
-                    <td class="score-cell">${e.best_streak} 🔥</td>
-                </tr>`;
-            }).join('');
-        } catch(e) {
-            tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty" style="color:#f87171">Failed to load.</div></td></tr>`;
-        }
-    }
-
-
-    async function openLB(showNameEntry=false) {
-        const currentKey = lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses);
-        const ns = document.getElementById('nameEntrySection');
-        const savedName = localStorage.getItem(LB_NAME_KEY) || '';
-        if (showNameEntry && pendingScoreKey) {
-            showEloOverlay(currentPlayerName, 'nfl', streak, true);
-            return;
-
-            endRound(true);
-        } else {
-            const left=maxGuesses-guessesUsed;
-            if (left>0) {
-                showBanner(`✗ Not ${guess||'?'} — ${left} guess${left>1?'es':''} left`,'hint');
-                document.getElementById('guessInput').value='';
-            } else {
-                streak=0; localStorage.setItem('nfl_guessr_cur',0);
-                document.getElementById('streakVal').textContent=0;
-                document.getElementById('playerNameDisplay').textContent=currentPlayerName;
-                document.getElementById('playerNameDisplay').style.color='#f87171';
-                showBanner(`✗ It was ${currentPlayerName} — Best: ${bestStreak}`,'err');
-                endRound(false);
-            }
-        }
-    });
 
     function endRound(won) {
         roundOver=true;
