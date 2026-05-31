@@ -611,6 +611,7 @@
     window.onload = loadPlayer;
     
 
+
     // ELO System
     const ELO_NAME_KEY = 'guessr_elo_name';
     const ELO_PIN_KEY  = 'guessr_elo_pin';
@@ -630,7 +631,13 @@
     function showAuthModal() { document.getElementById('authModal').style.display = 'flex'; }
     function hideAuthModal() {
         document.getElementById('authModal').style.display = 'none';
-        if (pendingEloRound) { pendingEloRound = null; loadPlayer(); }
+        // If we have a pending round now that creds are set, submit it
+        if (pendingEloRound && eloName && eloPin) {
+            const round = pendingEloRound; pendingEloRound = null;
+            showEloOverlay(round.player_name, round.sport, round.guesses_used, round.correct);
+        } else {
+            pendingEloRound = null;
+        }
     }
     function switchTab(tab) {
         const isReg = tab === 'register';
@@ -685,10 +692,7 @@
         localStorage.setItem(ELO_PIN_KEY, pin);
         document.getElementById('authModal').style.display = 'none';
         document.getElementById('eloDisplay').textContent = '⚡ ' + elo;
-        if (pendingEloRound) {
-            const round = pendingEloRound; pendingEloRound = null;
-            showEloOverlay(round.player_name, round.sport, round.guesses_used, round.correct);
-        }
+        hideAuthModal();
     }
 
     async function fetchEloUser() {
@@ -700,7 +704,8 @@
     }
 
     async function submitEloResult(data) {
-        if (!eloName || !eloPin) { pendingEloRound = data; showAuthModal(); return null; }
+        // Anonymous play — skip server, return null so overlay shows without ELO delta
+        if (!eloName || !eloPin) return null;
         try {
             const res = await fetch('/elo/result', {
                 method:'POST', headers:{'Content-Type':'application/json'},
@@ -709,7 +714,7 @@
             if (res.status === 401) {
                 eloName=''; eloPin='';
                 localStorage.removeItem(ELO_NAME_KEY); localStorage.removeItem(ELO_PIN_KEY);
-                pendingEloRound = data; showAuthModal(); return null;
+                return null;
             }
             return res.ok ? await res.json() : null;
         } catch(e) { return null; }
@@ -717,20 +722,34 @@
 
     async function showEloOverlay(player_name, sport, guesses_used, correct) {
         const result = await submitEloResult({player_name, sport, guesses_used, correct});
-        if (!result) return;
-        const delta = result.elo_change;
         document.getElementById('eloResultIcon').textContent = correct ? '✅' : '❌';
-        document.getElementById('eloDelta').textContent = (delta >= 0 ? '+' : '') + delta;
-        document.getElementById('eloDelta').className = delta >= 0 ? 'elo-delta-pos' : 'elo-delta-neg';
-        document.getElementById('eloAfterVal').textContent = result.elo_after;
-        document.getElementById('eloCardDiff').textContent = 'Card difficulty: ' + result.card_difficulty;
-        document.getElementById('eloDisplay').textContent = '⚡ ' + result.elo_after;
+        if (result) {
+            const delta = result.elo_change;
+            document.getElementById('eloDelta').textContent = (delta >= 0 ? '+' : '') + delta;
+            document.getElementById('eloDelta').className = delta >= 0 ? 'elo-delta-pos' : 'elo-delta-neg';
+            document.getElementById('eloAfterVal').textContent = result.elo_after;
+            document.getElementById('eloCardDiff').textContent = 'Card difficulty: ' + result.card_difficulty;
+            document.getElementById('eloDisplay').textContent = '⚡ ' + result.elo_after;
+        } else {
+            // Anonymous — show result without ELO change, prompt to sign up
+            document.getElementById('eloDelta').textContent = correct ? 'Correct!' : 'Wrong!';
+            document.getElementById('eloDelta').className = correct ? 'elo-delta-pos' : 'elo-delta-neg';
+            document.getElementById('eloAfterVal').textContent = '—';
+            document.getElementById('eloCardDiff').textContent = 'Sign in to track your ELO rating';
+            // Save for after auth
+            pendingEloRound = {player_name, sport, guesses_used, correct};
+        }
         document.getElementById('eloOverlay').classList.add('show');
     }
 
     function closeEloOverlay() {
         document.getElementById('eloOverlay').classList.remove('show');
-        loadPlayer();
+        // If anonymous and a round is pending, show auth modal before next card
+        if (pendingEloRound && !eloName) {
+            showAuthModal();
+        } else {
+            loadPlayer();
+        }
     }
 
     async function openEloDrawer() {
@@ -769,7 +788,7 @@
         if (e.target === document.getElementById('eloDrawer')) closeEloDrawer();
     });
 
-    if (!eloName || !eloPin) showAuthModal();
+    // Don't block page load with auth modal — fetch existing rating silently
     fetchEloUser();
 
 </script>
