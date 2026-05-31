@@ -1,11 +1,7 @@
 import random
 import re
 import math
-import sqlite3
-import hmac
-import hashlib
 import time
-import secrets
 import os
 import requests
 import pandas as pd
@@ -43,66 +39,52 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 # ---------------------------------------------------------------------------
-# Game-token signing (prevents arbitrary score submission)
+# Turso ELO Database
 # ---------------------------------------------------------------------------
 
-LEADERBOARD_SECRET = os.environ.get("LEADERBOARD_SECRET", secrets.token_hex(32))
-VALID_CATEGORIES   = {"nba", "nfl", "mlb"}
+TURSO_URL   = os.environ.get("TURSO_URL",   "nba-guessr-tezed13.aws-us-east-1.turso.io")
+TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
 
-def _sign(category: str, issued_at: int) -> str:
-    msg = f"{category}:{issued_at}"
-    return hmac.new(LEADERBOARD_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
-
-def make_game_token(category: str) -> str:
-    ts = int(time.time())
-    return f"{category}:{ts}:{_sign(category, ts)}"
-
-def verify_game_token(token: str, category: str, max_age: int = 7200) -> bool:
-    """Return True only if the token is valid, untampered, and not expired."""
-    try:
-        parts = token.split(":")
-        if len(parts) != 3:
-            return False
-        tok_cat, ts_str, sig = parts
-        if tok_cat != category:
-            return False
-        ts = int(ts_str)
-        if time.time() - ts > max_age:
-            return False
-        return hmac.compare_digest(_sign(category, ts), sig)
-    except Exception:
-        return False
-
-# ---------------------------------------------------------------------------
-# Leaderboard DB
-# ---------------------------------------------------------------------------
-
-DB_PATH = BASE_DIR / "leaderboard.db"
+VALID_SPORTS = {"nba", "nfl", "mlb"}
+ELO_DEFAULT  = 1200
+K_FACTOR     = 32
+CARD_MIN     = 800
+CARD_MAX     = 1800
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
 
-def init_db():
-    with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS scores (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                name        TEXT    NOT NULL COLLATE NOCASE,
-                category    TEXT    NOT NULL,
-                wins        INTEGER NOT NULL DEFAULT 0,
-                best_streak INTEGER NOT NULL DEFAULT 0,
-                updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-            )
-        """)
-        conn.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_name_cat
-            ON scores (name, category)
-        """)
-        conn.commit()
+def elo_outcome(guesses_used: int, correct: bool) -> float:
+    if not correct: return 0.0
+    return {1: 1.0, 2: 0.75, 3: 0.5}.get(guesses_used, 0.5)
 
-init_db()
+def calc_elo(user_elo: int, card_elo: int, outcome: float):
+    expected = 1 / (1 + 10 ** ((card_elo - user_elo) / 400))
+    delta    = round(K_FACTOR * (outcome - expected))
+    new_user = user_elo + delta
+    new_card = max(CARD_MIN, min(CARD_MAX, card_elo - delta))
+    return new_user, new_card, delta
+
+def get_user(conn, name: str, sport: str):
+    row = conn.execute(
+        "SELECT name, sport, elo, games, correct FROM users WHERE name=? AND sport=?",
+        [name, sport]
+    ).fetchone()
+    if not row: return None
+    return {"name": row[0], "sport": row[1], "elo": row[2], "games": row[3], "correct": row[4]}
+
+def get_or_create_card(conn, sport: str, player_name: str) -> dict:
+    row = conn.execute(
+        "SELECT * FROM player_cards WHERE sport=? AND player_name=?",
+        [sport, player_name]
+    ).fetchone()
+    if row:
+        return {"sport": row[0], "player_name": row[1], "difficulty": row[2],
+                "times_shown": row[3], "times_correct": row[4], "total_guesses": row[5]}
+    conn.execute("INSERT INTO player_cards (sport, player_name) VALUES (?,?)", [sport, player_name])
+    conn.commit()
+    return {"sport": sport, "player_name": player_name, "difficulty": ELO_DEFAULT,
+            "times_shown": 0, "times_correct": 0, "total_guesses": 0}
 
 # ---------------------------------------------------------------------------
 # NBA — Load & normalise CSV once at startup
@@ -585,69 +567,171 @@ async def nfl_spin_page(request: Request):
     return templates.TemplateResponse(request, "nfl_spin.html")
 
 # ---------------------------------------------------------------------------
-# Leaderboard API
+# ELO API
 # ---------------------------------------------------------------------------
 
-class ScorePayload(BaseModel):
+class RegisterPayload(BaseModel):
     name: str
-    category: str
-    streak: int
-    game_token: str   # required — issued by /game/start
+    pin:  str
+    sport: str
 
-@app.get("/game/start")
-async def game_start(category: str = Query(...)):
-    """Issue a signed token when a new game round begins."""
-    if category not in VALID_CATEGORIES:
-        return JSONResponse({"error": "Invalid category"}, status_code=400)
-    return JSONResponse({"game_token": make_game_token(category)})
+class LoginPayload(BaseModel):
+    name: str
+    pin:  str
+    sport: str
 
-@app.get("/leaderboard")
-async def get_leaderboard(category: str = Query(...)):
-    if category not in VALID_CATEGORIES:
-        return JSONResponse({"error": "Invalid category"}, status_code=400)
-    with get_db() as conn:
-        rows = conn.execute(
-            """SELECT name, best_streak FROM scores
-               WHERE category = ?
-               ORDER BY best_streak DESC LIMIT 10""",
-            (category.strip(),),
-        ).fetchall()
-    return JSONResponse([dict(r) for r in rows])
+class EloResultPayload(BaseModel):
+    name:         str
+    pin:          str
+    sport:        str
+    player_name:  str
+    guesses_used: int
+    correct:      bool
 
-@app.post("/leaderboard")
-async def post_leaderboard(payload: ScorePayload):
-    name     = payload.name.strip()[:20]
-    category = payload.category.strip()
-    streak   = max(0, int(payload.streak))
+def _validate_pin(pin: str) -> bool:
+    return pin.isdigit() and len(pin) == 4
 
-    if not name or not category:
-        return JSONResponse({"error": "name and category required"}, status_code=400)
+@app.post("/elo/register")
+async def elo_register(payload: RegisterPayload):
+    name  = payload.name.strip()[:30]
+    pin   = payload.pin.strip()
+    sport = payload.sport.strip().lower()
 
-    if category not in VALID_CATEGORIES:
-        return JSONResponse({"error": "Invalid category"}, status_code=400)
-
-    if not verify_game_token(payload.game_token, category):
-        return JSONResponse({"error": "Invalid or expired game token"}, status_code=403)
-
-    with get_db() as conn:
+    if not name or not _validate_pin(pin) or sport not in VALID_SPORTS:
+        return JSONResponse({"error": "Invalid name, PIN (must be 4 digits), or sport"}, status_code=400)
+    try:
+        conn = get_db()
+        # Check if name already exists for this sport
         existing = conn.execute(
-            "SELECT best_streak FROM scores WHERE name=? AND category=?",
-            (name, category),
+            "SELECT name FROM users WHERE name=? AND sport=?", [name, sport]
         ).fetchone()
         if existing:
-            conn.execute(
-                """UPDATE scores SET best_streak=?, updated_at=strftime('%s','now')
-                   WHERE name=? AND category=?""",
-                (max(existing["best_streak"], streak), name, category),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO scores (name, category, wins, best_streak) VALUES (?,?,1,?)",
-                (name, category, streak),
-            )
+            return JSONResponse({"error": "Name already taken for this sport"}, status_code=409)
+        conn.execute(
+            "INSERT INTO users (name, sport, pin) VALUES (?,?,?)",
+            [name, sport, pin]
+        )
         conn.commit()
-    return JSONResponse({"ok": True})
+        return JSONResponse({"ok": True, "elo": ELO_DEFAULT, "games": 0, "correct": 0})
+    except Exception as e:
+        print(f"[ELO] register error: {e}")
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 
+@app.post("/elo/login")
+async def elo_login(payload: LoginPayload):
+    name  = payload.name.strip()[:30]
+    pin   = payload.pin.strip()
+    sport = payload.sport.strip().lower()
+
+    if not name or not _validate_pin(pin) or sport not in VALID_SPORTS:
+        return JSONResponse({"error": "Invalid request"}, status_code=400)
+    try:
+        conn = get_db()
+        row = conn.execute(
+            "SELECT name, sport, pin, elo, games, correct FROM users WHERE name=? AND sport=?",
+            [name, sport]
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "Name not found"}, status_code=404)
+        if str(row[2]) != pin:
+            return JSONResponse({"error": "Incorrect PIN"}, status_code=401)
+        return JSONResponse({
+            "ok": True, "name": row[0], "sport": row[1],
+            "elo": row[3], "games": row[4], "correct": row[5]
+        })
+    except Exception as e:
+        print(f"[ELO] login error: {e}")
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
+
+@app.get("/elo/user")
+async def elo_user(name: str = Query(...), sport: str = Query(...)):
+    name  = name.strip()[:30]
+    sport = sport.strip().lower()
+    if not name or sport not in VALID_SPORTS:
+        return JSONResponse({"error": "Invalid request"}, status_code=400)
+    try:
+        conn = get_db()
+        user = get_user(conn, name, sport)
+        if not user:
+            return JSONResponse({"error": "User not found"}, status_code=404)
+        rank_row = conn.execute(
+            "SELECT COUNT(*)+1 FROM users WHERE sport=? AND elo > ?",
+            [sport, user["elo"]]
+        ).fetchone()
+        return JSONResponse({**user, "rank": rank_row[0] if rank_row else 1})
+    except Exception as e:
+        print(f"[ELO] elo_user error: {e}")
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
+
+@app.post("/elo/result")
+async def elo_result(payload: EloResultPayload):
+    name        = payload.name.strip()[:30]
+    pin         = payload.pin.strip()
+    sport       = payload.sport.strip().lower()
+    player_name = payload.player_name.strip()
+    guesses     = max(0, min(10, payload.guesses_used))
+    correct     = payload.correct
+
+    if not name or not _validate_pin(pin) or sport not in VALID_SPORTS or not player_name:
+        return JSONResponse({"error": "Invalid payload"}, status_code=400)
+    try:
+        conn = get_db()
+        # Verify PIN before accepting result
+        row = conn.execute(
+            "SELECT pin, elo FROM users WHERE name=? AND sport=?", [name, sport]
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "User not found"}, status_code=404)
+        if str(row[0]) != pin:
+            return JSONResponse({"error": "Incorrect PIN"}, status_code=401)
+
+        user_elo = row[1]
+        card     = get_or_create_card(conn, sport, player_name)
+        outcome  = elo_outcome(guesses, correct)
+        new_user_elo, new_card_elo, delta = calc_elo(user_elo, card["difficulty"], outcome)
+
+        conn.execute(
+            "UPDATE users SET elo=?, games=games+1, correct=correct+?, updated_at=strftime('%s','now') WHERE name=? AND sport=?",
+            [new_user_elo, 1 if correct else 0, name, sport]
+        )
+        conn.execute(
+            "UPDATE player_cards SET difficulty=?, times_shown=times_shown+1, times_correct=times_correct+?, total_guesses=total_guesses+? WHERE sport=? AND player_name=?",
+            [new_card_elo, 1 if correct else 0, guesses, sport, player_name]
+        )
+        conn.execute(
+            "INSERT INTO games (name, sport, player_name, guesses_used, correct, elo_before, elo_after, card_before, card_after) VALUES (?,?,?,?,?,?,?,?,?)",
+            [name, sport, player_name, guesses, 1 if correct else 0, user_elo, new_user_elo, card["difficulty"], new_card_elo]
+        )
+        conn.commit()
+        return JSONResponse({
+            "elo_before":      user_elo,
+            "elo_after":       new_user_elo,
+            "elo_change":      delta,
+            "card_difficulty": card["difficulty"],
+            "outcome":         outcome,
+        })
+    except Exception as e:
+        print(f"[ELO] elo_result error: {e}")
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
+
+@app.get("/elo/leaderboard")
+async def elo_leaderboard(sport: str = Query(...)):
+    sport = sport.strip().lower()
+    if sport not in VALID_SPORTS:
+        return JSONResponse({"error": "Invalid sport"}, status_code=400)
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT name, elo, games, correct FROM users WHERE sport=? ORDER BY elo DESC LIMIT 20",
+            [sport]
+        ).fetchall()
+        return JSONResponse([
+            {"rank": i+1, "name": r[0], "elo": r[1], "games": r[2], "correct": r[3]}
+            for i, r in enumerate(rows)
+        ])
+    except Exception as e:
+        print(f"[ELO] leaderboard error: {e}")
+        return JSONResponse({"error": "An internal error occurred"}, status_code=500)
 # ---------------------------------------------------------------------------
 # NBA API routes (unchanged)
 # ---------------------------------------------------------------------------
@@ -816,7 +900,7 @@ async def nfl_random_player(
         t = types.lower().strip()
         name_col = "full_name" if "full_name" in nfl_rosters_df.columns else "player_name"
 
-        # ── Build pool from rosters (covers all of 1966-present) ──────────
+        # ── Build pool from rosters, keyed by gsis_id to avoid name collisions ──
         roster_pool = nfl_rosters_df.copy()
         mask = (roster_pool["season"] >= start_season) & (roster_pool["season"] <= end_season)
         roster_pool = roster_pool[mask]
@@ -832,24 +916,20 @@ async def nfl_random_player(
         if roster_pool.empty:
             return JSONResponse({"error": "No players match this filter"}, status_code=404)
 
-        # Require players who appeared in at least 5 seasons in the range
-        season_counts = roster_pool.groupby(name_col)["season"].nunique()
-        five_plus     = set(season_counts[season_counts >= 5].index.tolist())
-        eligible_names = list(five_plus) if five_plus else roster_pool[name_col].dropna().unique().tolist()
+        # Require at least 5 seasons — group by gsis_id, not name
+        season_counts = roster_pool.groupby("gsis_id")["season"].nunique()
+        five_plus_ids = set(season_counts[season_counts >= 5].index.tolist())
+        eligible_ids  = list(five_plus_ids) if five_plus_ids else roster_pool["gsis_id"].dropna().unique().tolist()
 
-        random_name = random.choice(eligible_names)
+        chosen_gsis = random.choice(eligible_ids)
 
-        # ── Resolve gsis_id and metadata via rosters ──────────────────────
-        player_rows = nfl_rosters_df[nfl_rosters_df[name_col] == random_name]
-        gsis_id     = None
-        if "gsis_id" in player_rows.columns:
-            gid_vals = player_rows["gsis_id"].dropna()
-            if not gid_vals.empty:
-                gsis_id = str(gid_vals.iloc[0])
+        # ── All roster rows for this specific player (by gsis_id) ─────────
+        player_rows = nfl_rosters_df[nfl_rosters_df["gsis_id"] == chosen_gsis]
+        random_name = player_rows[name_col].dropna().iloc[0] if not player_rows.empty else str(chosen_gsis)
+        gsis_id     = str(chosen_gsis)
 
-        pinfo = nfl_player_info.get(gsis_id, {}) if gsis_id else {}
-        dinfo = (nfl_draft_info.get(gsis_id)
-                 or nfl_draft_info.get(f"name:{random_name}", {}))
+        pinfo = nfl_player_info.get(gsis_id, {})
+        dinfo = nfl_draft_info.get(gsis_id) or nfl_draft_info.get(f"name:{random_name}", {})
 
         position = (pinfo.get("position")
                     or (player_rows[pos_col].dropna().mode().iloc[0]
@@ -930,10 +1010,10 @@ async def nfl_random_player(
             if szn:
                 roster_szns[szn] = {"season": szn, "team": team or None, "position": pos or None}
 
-        # Overlay 1999+ detailed stats — collect ALL rows per season (handles trades)
+        # Overlay 1999+ detailed stats — match by player_id (= gsis_id) to avoid name collisions
         stats_szns = {}
-        if not nfl_stats_df.empty:
-            career_stats = nfl_stats_df[nfl_stats_df["player_display_name"] == random_name].copy()
+        if not nfl_stats_df.empty and "player_id" in nfl_stats_df.columns:
+            career_stats = nfl_stats_df[nfl_stats_df["player_id"] == gsis_id].copy()
             for _, row in career_stats.iterrows():
                 def g(col, default=None):
                     v = row.get(col, default)
@@ -1102,7 +1182,7 @@ async def spin_data():
                 "stat_val":  str(round(stat_val, 1)),
                 "season":    str(chosen_season),
                 "pos":       leader_row.get("pos", "N/A"),
-                "conf":      conf if conf else "Unknown",
+                "conf":      conf if conf else "Traded",
             },
         })
     except Exception as e:

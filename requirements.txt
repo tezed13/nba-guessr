@@ -6,4 +6,5 @@ python-multipart
 gunicorn
 nflreadpy
 pyarrow
-requests 
+requests
+libsql-experimental
