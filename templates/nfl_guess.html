@@ -323,9 +323,107 @@
         document.getElementById('suggestions').classList.add('hidden');
         // Only show leaderboard on loss if streak qualifies for top 10
         if (!won && streak > 0) {
-            setTimeout(() => maybeOpenLB(), 600);
+            setTimeout(() => showEloOverlay(currentPlayerName, 'nfl', 0, false), 600);
         }
     }
+
+
+    function resetUI() {
+        guessesUsed=0; roundOver=false; currentPlayerName='';
+        document.getElementById('playerNameDisplay').textContent='— — —';
+        document.getElementById('playerNameDisplay').style.color='#3f3f46';
+        document.getElementById('hintBadges').innerHTML='';
+        document.getElementById('guessInput').value='';
+        document.getElementById('suggestions').classList.add('hidden');
+        hideBanner();
+        document.getElementById('submitBtn').style.display='block';
+        document.getElementById('giveUpBtn').style.display='block';
+        document.getElementById('giveUpBtn').textContent='Give Up';
+        document.getElementById('giveUpBtn').style.background='';
+        document.getElementById('giveUpBtn').style.color='';
+        document.getElementById('nextBtn').style.display='none';
+        buildDots();
+        buildTableHeaders(activeTypes);
+    }
+
+    async function loadPlayer() {
+        resetUI();
+        const tbody = document.getElementById('seasonsBody');
+        tbody.innerHTML = Array(3).fill(
+            `<tr>${Array(10).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
+        ).join('');
+        try {
+            const res = await fetch(`/nfl/random_player?start_season=${activeSeason.start}&end_season=${activeSeason.end}&types=${activeTypes}`);
+            if (!res.ok) { const e=await res.json(); throw new Error(e.error||'Server error'); }
+            const data = await res.json();
+            currentPlayerName = data.player_name;
+
+            const badges = document.getElementById('hintBadges');
+            badges.innerHTML = '';
+            const bs  = 'display:inline-flex;align-items:center;gap:4px;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;color:#71717a';
+            const bsY = bs+';border-color:#854d0e;color:#fbbf24';
+            const bsG = bs+';border-color:#166534;color:#4ade80';
+
+            if (data.position) badges.innerHTML += `<span style="${bs}">🏈 ${data.position}</span>`;
+            if (data.height)   badges.innerHTML += `<span style="${bs}">📏 ${data.height}</span>`;
+            if (data.college)  badges.innerHTML += `<span style="${bs}">🎓 ${data.college}</span>`;
+            if (data.draft_pick)
+                badges.innerHTML += `<span style="${bs}">📋 Rd ${data.draft_round}, Pick ${data.draft_pick}</span>`;
+            else
+                badges.innerHTML += `<span style="${bs}">📋 Undrafted</span>`;
+
+            const aw = data.awards || {};
+            if (aw.hof)          badges.innerHTML += `<span style="${bsY}">🏆 HOF</span>`;
+            if (aw.allpro > 0)   badges.innerHTML += `<span style="${bsY}">⭐ ${aw.allpro}× All-Pro</span>`;
+            if (aw.probowls > 0) badges.innerHTML += `<span style="${bsG}">🌟 ${aw.probowls}× Pro Bowl</span>`;
+
+            tbody.innerHTML = '';
+            data.seasons.forEach(s => { tbody.insertAdjacentHTML('beforeend', buildRow(s, activeTypes)); });
+        } catch(err) {
+            tbody.innerHTML=`<tr><td colspan="11" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
+        }
+    }
+
+    // ── Submit guess ──────────────────────────────────────────────
+    document.getElementById('submitBtn').addEventListener('click', () => {
+        if (roundOver||!currentPlayerName) return;
+        const guess = document.getElementById('guessInput').value.trim();
+        if (!allPlayers.some(p=>norm(p)===norm(guess))) {
+            const inp=document.getElementById('guessInput');
+            inp.style.borderColor='#ef4444';
+            setTimeout(()=>inp.style.borderColor='',800);
+            return;
+        }
+        const correct = guess.toLowerCase()===currentPlayerName.toLowerCase();
+        markDot(guessesUsed, correct);
+        guessesUsed++;
+        if (correct) {
+            streak++;
+            if (streak>bestStreak){bestStreak=streak;localStorage.setItem('nfl_guessr_best',bestStreak);}
+            localStorage.setItem('nfl_guessr_cur',streak);
+            const el=document.getElementById('streakVal');
+            el.textContent=streak;
+            el.classList.remove('score-pop'); void el.offsetWidth; el.classList.add('score-pop');
+            document.getElementById('playerNameDisplay').textContent=currentPlayerName;
+            document.getElementById('playerNameDisplay').style.color='#4ade80';
+            showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`,'ok');
+            showEloOverlay(currentPlayerName, 'nfl', guessesUsed, true);
+            return;
+        } else {
+            const left=maxGuesses-guessesUsed;
+            if (left>0) {
+                showBanner(`✗ Not ${guess||'?'} — ${left} guess${left>1?'es':''} left`,'hint');
+                document.getElementById('guessInput').value='';
+            } else {
+                streak=0; localStorage.setItem('nfl_guessr_cur',0);
+                document.getElementById('streakVal').textContent=0;
+                document.getElementById('playerNameDisplay').textContent=currentPlayerName;
+                document.getElementById('playerNameDisplay').style.color='#f87171';
+                showBanner(`✗ It was ${currentPlayerName} — Best: ${bestStreak}`,'err');
+                endRound(false);
+            }
+        }
+    });
 
     // ── Autocomplete ─────────────────────────────────────────────
     const input=document.getElementById('guessInput');
@@ -416,9 +514,7 @@
     });
 
     // ── Leaderboard eligibility check ───────────────────────
-    async function maybeOpenLB() {
-                    showEloOverlay(currentPlayerName, 'nfl', 0, false);
-    }
+
 
     // ── Init ─────────────────────────────────────────────────────
     document.getElementById('nextBtn').addEventListener('click', loadPlayer);

@@ -363,11 +363,26 @@
     // Player name persisted in localStorage so they only type it once.
     // ══════════════════════════════════════════════════════════════
 
-    const LB_NAME_KEY = 'nba_lb_name';
-
 
     function escHtml(s) {
         return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function resetUI() {
+        guessesUsed = 0; roundOver = false; currentPlayerName = '';
+        document.getElementById('playerNameDisplay').textContent = '— — —';
+        document.getElementById('playerNameDisplay').style.color = '#3f3f46';
+        document.getElementById('hintBadges').innerHTML = '';
+        document.getElementById('guessInput').value = '';
+        document.getElementById('suggestions').classList.add('hidden');
+        hideBanner();
+        document.getElementById('submitBtn').style.display = 'block';
+        document.getElementById('giveUpBtn').style.display = 'block';
+        document.getElementById('giveUpBtn').textContent = 'Give Up';
+        document.getElementById('giveUpBtn').style.background = '';
+        document.getElementById('giveUpBtn').style.color = '';
+        document.getElementById('nextBtn').style.display = 'none';
+        buildDots();
     }
 
     // ── Load player ──────────────────────────────────────────────
@@ -497,9 +512,8 @@
         document.getElementById('guessInput').value = '';
         document.getElementById('suggestions').classList.add('hidden');
 
-        // Only show leaderboard on loss if streak qualifies for top 10
-        if (!won && streak > 0) {
-            setTimeout(() => maybeOpenLB(), 600);
+        if (!won) {
+            setTimeout(() => showEloOverlay(currentPlayerName, eloSport(), 0, false), 600);
         }
     }
 
