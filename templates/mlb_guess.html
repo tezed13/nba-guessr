@@ -160,7 +160,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px">
                 <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
-                <button class="btn-icon" onclick="openEloDrawer()" title="ELO Rankings" id="eloDisplay">⚡ 1200</button>
+                <button class="btn-icon" onclick="onEloButtonClick()" id="eloDisplay" title="Sign in / ELO" style="min-width:64px">Sign In</button>
             </div>
         </div>
 
@@ -450,7 +450,7 @@
         localStorage.setItem(ELO_NAME_KEY, name);
         localStorage.setItem(ELO_PIN_KEY, pin);
         document.getElementById('authModal').style.display = 'none';
-        document.getElementById('eloDisplay').textContent = '⚡ ' + elo;
+        updateEloButton(elo);
         hideAuthModal();
     }
 
@@ -458,7 +458,7 @@
         if (!eloName || !eloPin) return;
         try {
             const res = await fetch('/elo/user?name=' + encodeURIComponent(eloName) + '&sport=' + eloSport());
-            if (res.ok) { const d = await res.json(); document.getElementById('eloDisplay').textContent = '⚡ ' + d.elo; }
+            if (res.ok) { const d = await res.json(); updateEloButton(d.elo); }
         } catch(e) {}
     }
 
@@ -488,7 +488,7 @@
             document.getElementById('eloDelta').className = delta >= 0 ? 'elo-delta-pos' : 'elo-delta-neg';
             document.getElementById('eloAfterVal').textContent = result.elo_after;
             document.getElementById('eloCardDiff').textContent = 'Card difficulty: ' + result.card_difficulty;
-            document.getElementById('eloDisplay').textContent = '⚡ ' + result.elo_after;
+            updateEloButton(result.elo_after);
         } else {
             // Anonymous — show result without ELO change, prompt to sign up
             document.getElementById('eloDelta').textContent = correct ? 'Correct!' : 'Wrong!';
@@ -548,6 +548,24 @@
     });
 
     // Don't block page load with auth modal — fetch existing rating silently
+
+    function onEloButtonClick() {
+        if (eloName && eloPin) openEloDrawer();
+        else showAuthModal();
+    }
+
+    function updateEloButton(elo) {
+        const btn = document.getElementById('eloDisplay');
+        if (eloName && eloPin) {
+            btn.textContent = '⚡ ' + elo;
+            btn.title = 'ELO Rankings';
+        } else {
+            btn.textContent = 'Sign In';
+            btn.title = 'Sign in to track your ELO';
+        }
+    }
+
+    updateEloButton('—');
     fetchEloUser();
 
 </script>
