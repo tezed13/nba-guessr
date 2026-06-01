@@ -73,13 +73,27 @@
         .side-drawer.open .drawer-content { transform: translateY(0); }
 
         /* Leaderboard */
-
-
-
-
+        .lb-tabs { display:flex; gap:6px; margin-bottom:16px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+        .lb-tabs::-webkit-scrollbar { display:none; }
+        .lb-tab { flex-shrink:0; padding:6px 14px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; border:1.5px solid #27272a; background:transparent; color:#52525b; font-family:inherit; transition:all 0.15s; }
+        .lb-tab.active { background:#ef4444; border-color:#ef4444; color:#fff; }
+        .lb-tab:hover:not(.active) { border-color:#3f3f46; color:#a1a1aa; }
+        .lb-table { width:100%; border-collapse:collapse; }
+        .lb-table thead th { background:#18181b; color:#52525b; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:9px 12px; border-bottom:1px solid #27272a; text-align:left; }
+        .lb-table thead th:last-child { text-align:right; }
+        .lb-table tbody tr { border-bottom:1px solid #1c1c1f; }
+        .lb-table tbody tr:last-child { border-bottom:none; }
+        .lb-table tbody td { padding:10px 12px; font-size:13px; color:#a1a1aa; }
+        .lb-table tbody td.rank { color:#52525b; font-weight:700; width:32px; }
+        .lb-table tbody td.name-cell { color:#e4e4e7; font-weight:700; }
+        .lb-table tbody td.score-cell { color:#ef4444; font-weight:800; text-align:right; font-size:15px; }
+        .lb-table tbody tr.you-row td { color:#fbbf24; }
+        .lb-table tbody tr.you-row td.score-cell { color:#fbbf24; }
+        .rank-gold { color:#fbbf24 !important; } .rank-silver { color:#a1a1aa !important; } .rank-bronze { color:#b45309 !important; }
         .lb-empty { text-align:center; padding:40px 20px; color:#3f3f46; font-size:13px; font-weight:600; }
         .lb-meta { font-size:11px; color:#3f3f46; font-weight:600; margin-bottom:14px; padding:8px 12px; background:#18181b; border-radius:8px; border:1px solid #1c1c1f; }
-
+        #nameEntrySection { background:#18181b; border:1px solid #27272a; border-radius:12px; padding:16px; margin-bottom:16px; display:none; }
+        #nameEntrySection.visible { display:block; }
 
         /* Stat table */
         .stat-table { width:100%; border-collapse:collapse; }
@@ -140,71 +154,70 @@
 
         @keyframes scorePop { 0%{transform:scale(1)} 40%{transform:scale(1.18);color:#4ade80} 100%{transform:scale(1)} }
         .score-pop { animation:scorePop 0.4s ease; }
-        /* ── ELO ── */
-        /* ── ELO overlay ── */
-        #eloOverlay {
-            position: fixed; inset: 0; z-index: 100;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
-        }
-        #eloOverlay.show { opacity: 1; pointer-events: all; }
-        .elo-card {
-            background: #111113; border: 1px solid #27272a; border-radius: 20px;
-            padding: 32px 40px; text-align: center; min-width: 260px;
-        }
-        .elo-delta-pos { font-size: 48px; font-weight: 900; color: #22c55e; }
-        .elo-delta-neg { font-size: 48px; font-weight: 900; color: #ef4444; }
-        .elo-rating    { font-size: 14px; color: #71717a; margin-top: 8px; }
-        .elo-rating span { color: #e4e4e7; font-weight: 700; }
 
-        /* ── ELO drawer ── */
-        #eloDrawer {
-            position: fixed; inset: 0; z-index: 50;
-            display: flex; align-items: flex-end;
-            background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-            opacity: 0; pointer-events: none; transition: opacity 0.25s;
+        /* ── ELO ── */
+        #eloOverlay {
+            position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+            background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);
+            opacity:0;pointer-events:none;transition:opacity 0.3s;
         }
-        #eloDrawer.open { opacity: 1; pointer-events: all; }
-        #eloDrawer .drawer-content {
-            width: 100%; max-width: 680px; margin: 0 auto;
-            background: #111113; border: 1px solid #27272a;
-            border-radius: 20px 20px 0 0; padding: 24px 20px 36px;
-            transform: translateY(100%); transition: transform 0.28s cubic-bezier(.4,0,.2,1);
-            max-height: 85dvh; overflow-y: auto;
-        }
-        #eloDrawer.open .drawer-content { transform: translateY(0); }
-        .elo-table { width: 100%; border-collapse: collapse; }
-        .elo-table thead th {
-            background: #18181b; color: #52525b; font-size: 10px; font-weight: 700;
-            letter-spacing: 0.08em; text-transform: uppercase; padding: 9px 12px;
-            border-bottom: 1px solid #27272a; text-align: left;
-        }
-        .elo-table thead th:last-child { text-align: right; }
-        .elo-table tbody tr { border-bottom: 1px solid #1c1c1f; }
-        .elo-table tbody tr:last-child { border-bottom: none; }
-        .elo-table tbody td { padding: 10px 12px; font-size: 13px; color: #a1a1aa; }
-        .elo-table tbody td.rank-cell { color: #52525b; font-weight: 700; width: 32px; }
-        .elo-table tbody td.name-cell { color: #e4e4e7; font-weight: 700; }
-        .elo-table tbody td.elo-cell  { color: #ef4444; font-weight: 800; text-align: right; font-size: 15px; }
-        .elo-table tbody tr.you-row td { color: #fbbf24; }
-        .elo-table tbody tr.you-row td.elo-cell { color: #fbbf24; }
-        .rank-gold   { color: #fbbf24 !important; }
-        .rank-silver { color: #a1a1aa !important; }
-        .rank-bronze { color: #b45309 !important; }
-        #nameModal {
-            position: fixed; inset: 0; z-index: 200;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
-        }
+        #eloOverlay.show{opacity:1;pointer-events:all;}
+        .elo-card{background:#111113;border:1px solid #27272a;border-radius:20px;padding:32px 40px;text-align:center;min-width:260px;}
+        .elo-delta-pos{font-size:48px;font-weight:900;color:#22c55e;}
+        .elo-delta-neg{font-size:48px;font-weight:900;color:#ef4444;}
+        .elo-rating{font-size:14px;color:#71717a;margin-top:8px;}
+        .elo-rating span{color:#e4e4e7;font-weight:700;}
+        #eloDrawer{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;
+            background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);
+            opacity:0;pointer-events:none;transition:opacity 0.25s;}
+        #eloDrawer.open{opacity:1;pointer-events:all;}
+        #eloDrawer .drawer-content{width:100%;max-width:680px;margin:0 auto;
+            background:#111113;border:1px solid #27272a;border-radius:20px 20px 0 0;
+            padding:24px 20px 36px;transform:translateY(100%);
+            transition:transform 0.28s cubic-bezier(.4,0,.2,1);max-height:85dvh;overflow-y:auto;}
+        #eloDrawer.open .drawer-content{transform:translateY(0);}
+        .elo-table{width:100%;border-collapse:collapse;}
+        .elo-table thead th{background:#18181b;color:#52525b;font-size:10px;font-weight:700;
+            letter-spacing:.08em;text-transform:uppercase;padding:9px 12px;
+            border-bottom:1px solid #27272a;text-align:left;}
+        .elo-table thead th:last-child{text-align:right;}
+        .elo-table tbody tr{border-bottom:1px solid #1c1c1f;}
+        .elo-table tbody tr:last-child{border-bottom:none;}
+        .elo-table tbody td{padding:10px 12px;font-size:13px;color:#a1a1aa;}
+        .elo-table tbody td.rank-cell{color:#52525b;font-weight:700;width:32px;}
+        .elo-table tbody td.name-cell{color:#e4e4e7;font-weight:700;}
+        .elo-table tbody td.elo-cell{color:#3b82f6;font-weight:800;text-align:right;font-size:15px;}
+        .elo-table tbody tr.you-row td{color:#fbbf24;}
+        .elo-table tbody tr.you-row td.elo-cell{color:#fbbf24;}
+        .rank-gold{color:#fbbf24!important;}.rank-silver{color:#a1a1aa!important;}.rank-bronze{color:#b45309!important;}
+        #authModal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+            background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);}
+        .name-modal-card{background:#111113;border:1px solid #27272a;border-radius:16px;padding:28px 24px;width:320px;text-align:center;}
+
     </style>
 </head>
 <body>
     <input type="hidden" id="startSeason" value="{{ start_season }}">
     <input type="hidden" id="endSeason"   value="{{ end_season }}">
     <input type="hidden" id="types"       value="{{ types }}">
+            <div id="nameEntrySection">
+                <p class="setting-label" style="margin-bottom:8px">Enter your name to save your score</p>
+                <div style="display:flex;gap:8px">
+                    <input type="text" id="lbNameInput" class="dark-input" placeholder="Your name..." maxlength="20" style="flex:1;font-size:13px;padding:10px 12px">
+                    <button class="btn btn-red" style="padding:10px 16px;font-size:13px" onclick="saveScore()">Save</button>
+                </div>
+            </div>
+            <div class="lb-tabs" id="lbTabs"></div>
+            <div class="lb-meta" id="lbMeta"></div>
+            <div style="border-radius:12px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
+                <table class="lb-table">
+                    <thead><tr><th>#</th><th>Player</th><th style="text-align:right">Best Streak</th></tr></thead>
+                    <tbody id="lbBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    <!-- LEADERBOARD DRAWER -->
     <!-- MAIN APP -->
     <div id="app">
         <div id="topbar">
@@ -253,7 +266,6 @@
     </div>
 
 
-    <!-- ELO overlay (shown after each round) -->
     <div id="eloOverlay">
         <div class="elo-card">
             <div id="eloResultIcon" style="font-size:36px;margin-bottom:8px"></div>
@@ -263,12 +275,11 @@
             <button onclick="closeEloOverlay()" class="btn btn-blue" style="margin-top:20px;padding:10px 28px">Next Player</button>
         </div>
     </div>
-    <!-- ELO leaderboard drawer -->
     <div id="eloDrawer">
         <div class="drawer-content">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-                <p style="font-size:16px;font-weight:800;letter-spacing:0.03em">ELO Rankings</p>
-                <button class="btn-icon" onclick="closeEloDrawer()">X</button>
+                <p style="font-size:16px;font-weight:800">📊 ELO Rankings</p>
+                <button class="btn-icon" onclick="closeEloDrawer()">✕</button>
             </div>
             <div id="eloYourRank" style="background:#18181b;border:1px solid #27272a;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#71717a">Sign in to see your rank</div>
             <div style="border-radius:12px;border:1px solid #1c1c1f;overflow:hidden;background:#111113">
@@ -279,7 +290,6 @@
             </div>
         </div>
     </div>
-    <!-- Auth modal -->
     <div id="authModal" style="display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px)">
         <div class="name-modal-card" style="width:340px">
             <div style="display:flex;gap:0;margin-bottom:22px;border:1px solid #27272a;border-radius:10px;overflow:hidden">
@@ -288,7 +298,7 @@
             </div>
             <div id="panelRegister">
                 <p style="font-size:15px;font-weight:800;margin-bottom:4px">Create your profile</p>
-                <p style="font-size:12px;color:#71717a;margin-bottom:16px">Pick a name and a 4-digit PIN to protect it</p>
+                <p style="font-size:12px;color:#71717a;margin-bottom:16px">Pick a name and 4-digit PIN</p>
                 <input type="text" id="regName" class="dark-input" placeholder="Your name..." maxlength="30" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:10px;box-sizing:border-box">
                 <input type="password" id="regPin" class="dark-input" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:10px;box-sizing:border-box">
                 <input type="password" id="regPinConfirm" class="dark-input" placeholder="Confirm PIN" maxlength="4" inputmode="numeric" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:14px;box-sizing:border-box">
@@ -297,7 +307,7 @@
             </div>
             <div id="panelLogin" style="display:none">
                 <p style="font-size:15px;font-weight:800;margin-bottom:4px">Welcome back</p>
-                <p style="font-size:12px;color:#71717a;margin-bottom:16px">Enter your name and PIN to load your rating</p>
+                <p style="font-size:12px;color:#71717a;margin-bottom:16px">Enter name and PIN to load your rating</p>
                 <input type="text" id="loginName" class="dark-input" placeholder="Your name..." maxlength="30" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:10px;box-sizing:border-box">
                 <input type="password" id="loginPin" class="dark-input" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:14px;box-sizing:border-box">
                 <div id="loginError" style="font-size:12px;color:#ef4444;margin-bottom:10px;display:none"></div>
@@ -307,27 +317,211 @@
         </div>
     </div>
 
-    </div>
-
     <script>
     // ══════════════════════════════════════════════════════════════
     // LEADERBOARD (global, API-backed — identical pattern to NBA)
     // ══════════════════════════════════════════════════════════════
-
-    function endRound(won) {
-        roundOver=true;
-        document.getElementById('submitBtn').style.display='none';
-        document.getElementById('giveUpBtn').style.display='none';
-        document.getElementById('nextBtn').style.display='block';
-        document.getElementById('guessInput').value='';
-        document.getElementById('suggestions').classList.add('hidden');
-        // Only show leaderboard on loss if streak qualifies for top 10
-        if (!won && streak > 0) {
-            setTimeout(() => showEloOverlay(currentPlayerName, 'nfl', 0, false), 600);
-        }
+    function lbCategoryLabel(key) {
+        const m = key.match(/^nfl_(\d+)-(\d+)_(.+)_(\d+)g$/);
+        if (!m) return key;
+        const [, start, end, types, maxG] = m;
+        const tl = {qb:'Quarterbacks', skill:'Skill Positions', all:'All Positions'}[types] || types;
+        return `NFL ${start}–${end} · ${tl} · ${maxG} guess${maxG==='1'?'':'es'}`;
+    }
+    function lbShortLabel(key) {
+        const m = key.match(/^nfl_(\d+)-(\d+)_(.+)_(\d+)g$/);
+        if (!m) return key;
+        const [, start, end, types, maxG] = m;
+        const ts = {qb:'QB', skill:'Skill', all:'All'}[types] || types;
+        return `${start}–${end} · ${ts} · ${maxG}G`;
+    }
+    function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
 
+    const lbKnownKeys = new Set();
+
+            tbody.innerHTML = entries.map((e,i) => {
+                const isYou = savedName && e.name.toLowerCase()===savedName.toLowerCase();
+                const rc    = i===0?'rank-gold':i===1?'rank-silver':i===2?'rank-bronze':'';
+                const re    = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
+                return `<tr class="${isYou?'you-row':''}">
+                    <td class="rank ${rc}">${re}</td>
+                    <td class="name-cell">${escHtml(e.name)}${isYou?' <span style="font-size:10px;color:#52525b">(you)</span>':''}</td>
+                    <td class="score-cell">${e.best_streak} 🔥</td>
+                </tr>`;
+            }).join('');
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="4"><div class="lb-empty" style="color:#f87171">Failed to load.</div></td></tr>`;
+
+        document.getElementById('lbDrawer').classList.add('open');
+        renderLB(currentKey);
+
+
+        if (pendingScoreKey) { await             showEloOverlay(currentPlayerName, 'nfl', guessesUsed, true);
+            return;
+        renderLB(lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses));
+    }
+
+    document.getElementById('lbDrawer').addEventListener('click', e => {
+        if (e.target===document.getElementById('lbDrawer')) closeLB();
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // GAME STATE
+    // ══════════════════════════════════════════════════════════════
+    let currentPlayerName = "";
+    let streak     = parseInt(localStorage.getItem('nfl_guessr_cur')  || '0');
+    let bestStreak = parseInt(localStorage.getItem('nfl_guessr_best') || '0');
+    let allPlayers = [];
+    let guessesUsed = 0;
+    let roundOver   = false;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    let maxGuesses = parseInt(urlParams.get('max_guesses') || '3');
+
+    const NFL_ERAS = [
+        { label:"'70s",     start:1970, end:1979 },
+        { label:"'80s",     start:1980, end:1989 },
+        { label:"'90s",     start:1990, end:1999 },
+        { label:"'00s",     start:2000, end:2009 },
+        { label:"'10s",     start:2010, end:2019 },
+        { label:"'20s",     start:2020, end:2024 },
+        { label:'All Time', start:1970, end:2024 },
+    ];
+
+    const _urlStart = parseInt(document.getElementById('startSeason').value);
+    const _urlEnd   = parseInt(document.getElementById('endSeason').value);
+
+    function eraFromRange(start, end) {
+        if (start <= 1970 && end >= 2024) return [NFL_ERAS[NFL_ERAS.length - 1]];
+        return NFL_ERAS.filter(e => e.start >= start && e.end <= end && e.label !== 'All Time');
+    }
+
+    let selectedEras = eraFromRange(_urlStart, _urlEnd);
+    if (!selectedEras.length) selectedEras = [NFL_ERAS[NFL_ERAS.length - 1]];
+
+    function getActiveSeason() {
+        const start = Math.min(...selectedEras.map(e => e.start));
+        const end   = Math.max(...selectedEras.map(e => e.end));
+        return { start, end };
+    }
+
+    let activeSeason = getActiveSeason();
+
+    function buildEraChips() {
+        const chips = document.getElementById('eraChips');
+        if (!chips) return;
+        chips.innerHTML = NFL_ERAS.map((era, i) => {
+            const on = selectedEras.some(e => e.label === era.label);
+            return `<button class="era-chip-game${on ? ' on' : ''}" data-idx="${i}">${era.label}</button>`;
+        }).join('');
+        chips.querySelectorAll('.era-chip-game').forEach((btn, i) => {
+            btn.addEventListener('click', () => toggleEraGame(i));
+        });
+    }
+
+    function toggleEraGame(idx) {
+        const allTimeIdx = NFL_ERAS.length - 1;
+        if (idx === allTimeIdx) {
+            selectedEras = [NFL_ERAS[allTimeIdx]];
+        } else {
+            const era = NFL_ERAS[idx];
+            const on  = selectedEras.some(e => e.label === era.label);
+            if (on) {
+                selectedEras = selectedEras.filter(e => e.label !== era.label);
+            } else {
+                selectedEras = selectedEras.filter(e => e.label !== NFL_ERAS[allTimeIdx].label);
+                selectedEras.push(era);
+            }
+            if (!selectedEras.length) selectedEras = [era];
+        }
+        activeSeason = getActiveSeason();
+        buildEraChips();
+        loadPlayer();
+    }
+
+    let activeTypes = document.getElementById('types').value.trim();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('streakVal').textContent = streak;
+        buildEraChips();
+    });
+
+    fetch('/nfl/all_players').then(r=>r.json()).then(d=>allPlayers=d);
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function fmt(v, dec=0) {
+        if (v===null||v===undefined) return '—';
+        return dec>0 ? parseFloat(v).toFixed(dec) : v;
+    }
+
+    function buildDots() {
+        document.getElementById('attemptDots').innerHTML =
+            Array.from({length:maxGuesses},(_,i)=>`<span class="attempt-dot" id="dot-${i}"></span>`).join('');
+    }
+    function markDot(i, correct) {
+        const d = document.getElementById(`dot-${i}`);
+        if (d) d.classList.add(correct?'used-right':'used-wrong');
+    }
+    function showBanner(text, type) {
+        const b = document.getElementById('resultBanner');
+        b.textContent=text; b.className=`banner banner-${type}`; b.style.display='block';
+    }
+    function hideBanner() { document.getElementById('resultBanner').style.display='none'; }
+
+    // Settings handled on home screen
+
+    // ── Determine which columns to show based on position type ──
+    function buildTableHeaders(types) {
+        const head = document.getElementById('statsHead');
+        if (types === 'qb') {
+            head.innerHTML = `<tr>
+                <th>Year</th><th>Team</th><th>CMP</th><th>ATT</th>
+                <th>Pass Yds</th><th>Pass TD</th><th>INT</th>
+                <th>Rush Yds</th><th>Rush TD</th><th>Sacks</th>
+            </tr>`;
+        } else {
+            head.innerHTML = `<tr>
+                <th>Year</th><th>Team</th><th>Pos</th>
+                <th>Car</th><th>Rush Yds</th><th>Rush TD</th>
+                <th>Rec</th><th>Tgt</th><th>Rec Yds</th><th>Rec TD</th>
+            </tr>`;
+        }
+    }
+
+    function buildRow(s, types) {
+        if (types === 'qb') {
+            return `<tr>
+                <td class="yr">${fmt(s.season)}</td>
+                <td class="tm">${fmt(s.team)}</td>
+                <td>${fmt(s.completions)}</td>
+                <td>${fmt(s.attempts)}</td>
+                <td class="hi">${fmt(s.passing_yards)}</td>
+                <td>${fmt(s.passing_tds)}</td>
+                <td>${fmt(s.interceptions)}</td>
+                <td>${fmt(s.rushing_yards)}</td>
+                <td>${fmt(s.rushing_tds)}</td>
+                <td>${fmt(s.sacks)}</td>
+            </tr>`;
+        } else {
+            return `<tr>
+                <td class="yr">${fmt(s.season)}</td>
+                <td class="tm">${fmt(s.team)}</td>
+                <td class="pos">${fmt(s.position)}</td>
+                <td>${fmt(s.carries)}</td>
+                <td>${fmt(s.rushing_yards)}</td>
+                <td>${fmt(s.rushing_tds)}</td>
+                <td>${fmt(s.receptions)}</td>
+                <td>${fmt(s.targets)}</td>
+                <td class="hi">${fmt(s.receiving_yards)}</td>
+                <td>${fmt(s.receiving_tds)}</td>
+            </tr>`;
+        }
+    }
+
+    // ── Reset UI ─────────────────────────────────────────────────
     function resetUI() {
         guessesUsed=0; roundOver=false; currentPlayerName='';
         document.getElementById('playerNameDisplay').textContent='— — —';
@@ -346,12 +540,14 @@
         buildTableHeaders(activeTypes);
     }
 
+    // ── Load player ──────────────────────────────────────────────
     async function loadPlayer() {
         resetUI();
         const tbody = document.getElementById('seasonsBody');
         tbody.innerHTML = Array(3).fill(
             `<tr>${Array(10).fill('<td><span class="skeleton"></span></td>').join('')}</tr>`
         ).join('');
+
         try {
             const res = await fetch(`/nfl/random_player?start_season=${activeSeason.start}&end_season=${activeSeason.end}&types=${activeTypes}`);
             if (!res.ok) { const e=await res.json(); throw new Error(e.error||'Server error'); }
@@ -363,28 +559,33 @@
             const bs  = 'display:inline-flex;align-items:center;gap:4px;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;color:#71717a';
             const bsY = bs+';border-color:#854d0e;color:#fbbf24';
             const bsG = bs+';border-color:#166534;color:#4ade80';
+            const bsR = bs+';border-color:#7f1d1d;color:#f87171';
 
             if (data.position) badges.innerHTML += `<span style="${bs}">🏈 ${data.position}</span>`;
             if (data.height)   badges.innerHTML += `<span style="${bs}">📏 ${data.height}</span>`;
             if (data.college)  badges.innerHTML += `<span style="${bs}">🎓 ${data.college}</span>`;
+
             if (data.draft_pick)
                 badges.innerHTML += `<span style="${bs}">📋 Rd ${data.draft_round}, Pick ${data.draft_pick}</span>`;
             else
                 badges.innerHTML += `<span style="${bs}">📋 Undrafted</span>`;
 
             const aw = data.awards || {};
-            if (aw.hof)          badges.innerHTML += `<span style="${bsY}">🏆 HOF</span>`;
-            if (aw.allpro > 0)   badges.innerHTML += `<span style="${bsY}">⭐ ${aw.allpro}× All-Pro</span>`;
-            if (aw.probowls > 0) badges.innerHTML += `<span style="${bsG}">🌟 ${aw.probowls}× Pro Bowl</span>`;
+            if (aw.hof)             badges.innerHTML += `<span style="${bsY}">🏆 HOF</span>`;
+            if (aw.allpro > 0)      badges.innerHTML += `<span style="${bsY}">⭐ ${aw.allpro}× All-Pro</span>`;
+            if (aw.probowls > 0)    badges.innerHTML += `<span style="${bsG}">🌟 ${aw.probowls}× Pro Bowl</span>`;
 
+            // Table rows
             tbody.innerHTML = '';
-            data.seasons.forEach(s => { tbody.insertAdjacentHTML('beforeend', buildRow(s, activeTypes)); });
+            data.seasons.forEach(s => {
+                tbody.insertAdjacentHTML('beforeend', buildRow(s, activeTypes));
+            });
         } catch(err) {
             tbody.innerHTML=`<tr><td colspan="11" style="padding:20px;text-align:center;color:#f87171;font-weight:600">${err.message}</td></tr>`;
         }
     }
 
-    // ── Submit guess ──────────────────────────────────────────────
+    // ── Submit guess ─────────────────────────────────────────────
     document.getElementById('submitBtn').addEventListener('click', () => {
         if (roundOver||!currentPlayerName) return;
         const guess = document.getElementById('guessInput').value.trim();
@@ -397,6 +598,7 @@
         const correct = guess.toLowerCase()===currentPlayerName.toLowerCase();
         markDot(guessesUsed, correct);
         guessesUsed++;
+
         if (correct) {
             streak++;
             if (streak>bestStreak){bestStreak=streak;localStorage.setItem('nfl_guessr_best',bestStreak);}
@@ -407,8 +609,12 @@
             document.getElementById('playerNameDisplay').textContent=currentPlayerName;
             document.getElementById('playerNameDisplay').style.color='#4ade80';
             showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`,'ok');
-            showEloOverlay(currentPlayerName, 'nfl', guessesUsed, true);
+
+            // Save silently
+                        showEloOverlay(currentPlayerName, 'nfl', guessesUsed, true);
             return;
+
+            endRound(true);
         } else {
             const left=maxGuesses-guessesUsed;
             if (left>0) {
@@ -424,6 +630,19 @@
             }
         }
     });
+
+    function endRound(won) {
+        roundOver=true;
+        document.getElementById('submitBtn').style.display='none';
+        document.getElementById('giveUpBtn').style.display='none';
+        document.getElementById('nextBtn').style.display='block';
+        document.getElementById('guessInput').value='';
+        document.getElementById('suggestions').classList.add('hidden');
+        // Only show leaderboard on loss if streak qualifies for top 10
+        if (!won && streak > 0) {
+            setTimeout(() => showEloOverlay(currentPlayerName, 'nfl', 0, false), 600);
+        }
+    }
 
     // ── Autocomplete ─────────────────────────────────────────────
     const input=document.getElementById('guessInput');
@@ -515,14 +734,11 @@
 
     // ── Leaderboard eligibility check ───────────────────────
 
-
     // ── Init ─────────────────────────────────────────────────────
     document.getElementById('nextBtn').addEventListener('click', loadPlayer);
     window.onload = loadPlayer;
     
-
-
-    // ELO System
+    // ── ELO System ───────────────────────────────────────────────
     const ELO_NAME_KEY = 'guessr_elo_name';
     const ELO_PIN_KEY  = 'guessr_elo_pin';
     let eloName = localStorage.getItem(ELO_NAME_KEY) || '';
@@ -535,189 +751,127 @@
         if (p.includes('mlb')) return 'mlb';
         return 'nba';
     }
-    function escHtmlElo(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-    function showAuthModal() { document.getElementById('authModal').style.display = 'flex'; }
+    function escHtmlElo(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function showAuthModal() { const m=document.getElementById('authModal'); m.style.display='flex'; }
     function hideAuthModal() {
-        document.getElementById('authModal').style.display = 'none';
-        // If we have a pending round now that creds are set, submit it
-        if (pendingEloRound && eloName && eloPin) {
-            const round = pendingEloRound; pendingEloRound = null;
-            showEloOverlay(round.player_name, round.sport, round.guesses_used, round.correct);
-        } else {
-            pendingEloRound = null;
-        }
+        document.getElementById('authModal').style.display='none';
+        if (pendingEloRound && eloName && eloPin) { const r=pendingEloRound; pendingEloRound=null; showEloOverlay(r.player_name,r.sport,r.guesses_used,r.correct); }
+        else { pendingEloRound=null; }
     }
     function switchTab(tab) {
-        const isReg = tab === 'register';
-        document.getElementById('panelRegister').style.display = isReg ? '' : 'none';
-        document.getElementById('panelLogin').style.display    = isReg ? 'none' : '';
-        document.getElementById('tabRegister').style.background = isReg ? '#3b82f6' : 'transparent';
-        document.getElementById('tabRegister').style.color      = isReg ? '#fff' : '#71717a';
-        document.getElementById('tabLogin').style.background    = isReg ? 'transparent' : '#3b82f6';
-        document.getElementById('tabLogin').style.color         = isReg ? '#71717a' : '#fff';
+        const isReg=tab==='register';
+        document.getElementById('panelRegister').style.display=isReg?'':'none';
+        document.getElementById('panelLogin').style.display=isReg?'none':'';
+        document.getElementById('tabRegister').style.background=isReg?'#3b82f6':'transparent';
+        document.getElementById('tabRegister').style.color=isReg?'#fff':'#71717a';
+        document.getElementById('tabLogin').style.background=isReg?'transparent':'#3b82f6';
+        document.getElementById('tabLogin').style.color=isReg?'#71717a':'#fff';
     }
-    function showRegError(msg)   { const e=document.getElementById('regError');   e.textContent=msg; e.style.display=msg?'block':'none'; }
-    function showLoginError(msg) { const e=document.getElementById('loginError'); e.textContent=msg; e.style.display=msg?'block':'none'; }
-
+    function showRegError(msg)  {const e=document.getElementById('regError');  e.textContent=msg;e.style.display=msg?'block':'none';}
+    function showLoginError(msg){const e=document.getElementById('loginError');e.textContent=msg;e.style.display=msg?'block':'none';}
     async function doRegister() {
-        const name = document.getElementById('regName').value.trim();
-        const pin  = document.getElementById('regPin').value.trim();
-        const pin2 = document.getElementById('regPinConfirm').value.trim();
+        const name=document.getElementById('regName').value.trim();
+        const pin=document.getElementById('regPin').value.trim();
+        const pin2=document.getElementById('regPinConfirm').value.trim();
         showRegError('');
         if (!name) return showRegError('Please enter a name');
         if (!/^[0-9]{4}$/.test(pin)) return showRegError('PIN must be exactly 4 digits');
-        if (pin !== pin2) return showRegError('PINs do not match');
+        if (pin!==pin2) return showRegError('PINs do not match');
         try {
-            const res = await fetch('/elo/register', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({name, pin, sport: eloSport()}),
-            });
-            const d = await res.json();
-            if (!res.ok) return showRegError(d.error || 'Registration failed');
-            setCredentials(name, pin, d.elo);
-        } catch(e) { showRegError('Network error, please try again'); }
+            const res=await fetch('/elo/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,pin,sport:eloSport()})});
+            const d=await res.json();
+            if (!res.ok) return showRegError(d.error||'Registration failed');
+            setCredentials(name,pin,d.elo);
+        } catch(e){showRegError('Network error, please try again');}
     }
-
     async function doLogin() {
-        const name = document.getElementById('loginName').value.trim();
-        const pin  = document.getElementById('loginPin').value.trim();
+        const name=document.getElementById('loginName').value.trim();
+        const pin=document.getElementById('loginPin').value.trim();
         showLoginError('');
-        if (!name || !pin) return showLoginError('Please fill in all fields');
+        if (!name||!pin) return showLoginError('Please fill in all fields');
         try {
-            const res = await fetch('/elo/login', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({name, pin, sport: eloSport()}),
-            });
-            const d = await res.json();
-            if (!res.ok) return showLoginError(d.error || 'Login failed');
-            setCredentials(name, pin, d.elo);
-        } catch(e) { showLoginError('Network error, please try again'); }
+            const res=await fetch('/elo/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,pin,sport:eloSport()})});
+            const d=await res.json();
+            if (!res.ok) return showLoginError(d.error||'Login failed');
+            setCredentials(name,pin,d.elo);
+        } catch(e){showLoginError('Network error, please try again');}
     }
-
-    function setCredentials(name, pin, elo) {
-        eloName = name; eloPin = pin;
-        localStorage.setItem(ELO_NAME_KEY, name);
-        localStorage.setItem(ELO_PIN_KEY, pin);
-        document.getElementById('authModal').style.display = 'none';
+    function setCredentials(name,pin,elo) {
+        eloName=name; eloPin=pin;
+        localStorage.setItem(ELO_NAME_KEY,name); localStorage.setItem(ELO_PIN_KEY,pin);
+        document.getElementById('authModal').style.display='none';
         updateEloButton(elo);
-        hideAuthModal();
+        if (pendingEloRound){const r=pendingEloRound;pendingEloRound=null;showEloOverlay(r.player_name,r.sport,r.guesses_used,r.correct);}
     }
-
     async function fetchEloUser() {
-        if (!eloName || !eloPin) return;
+        if (!eloName||!eloPin) return;
         try {
-            const res = await fetch('/elo/user?name=' + encodeURIComponent(eloName) + '&sport=' + eloSport());
-            if (res.ok) { const d = await res.json(); updateEloButton(d.elo); }
-        } catch(e) {}
+            const res=await fetch('/elo/user?name='+encodeURIComponent(eloName)+'&sport='+eloSport());
+            if (res.ok){const d=await res.json();updateEloButton(d.elo);}
+        } catch(e){}
     }
-
     async function submitEloResult(data) {
-        // Anonymous play — skip server, return null so overlay shows without ELO delta
-        if (!eloName || !eloPin) return null;
+        if (!eloName||!eloPin) return null;
         try {
-            const res = await fetch('/elo/result', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({name:eloName, pin:eloPin, ...data}),
-            });
-            if (res.status === 401) {
-                eloName=''; eloPin='';
-                localStorage.removeItem(ELO_NAME_KEY); localStorage.removeItem(ELO_PIN_KEY);
-                return null;
-            }
-            return res.ok ? await res.json() : null;
-        } catch(e) { return null; }
+            const res=await fetch('/elo/result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:eloName,pin:eloPin,...data})});
+            if (res.status===401){eloName='';eloPin='';localStorage.removeItem(ELO_NAME_KEY);localStorage.removeItem(ELO_PIN_KEY);return null;}
+            return res.ok?await res.json():null;
+        } catch(e){return null;}
     }
-
-    async function showEloOverlay(player_name, sport, guesses_used, correct) {
-        const result = await submitEloResult({player_name, sport, guesses_used, correct});
-        document.getElementById('eloResultIcon').textContent = correct ? '✅' : '❌';
+    async function showEloOverlay(player_name,sport,guesses_used,correct) {
+        const result=await submitEloResult({player_name,sport,guesses_used,correct});
+        document.getElementById('eloResultIcon').textContent=correct?'✅':'❌';
         if (result) {
-            const delta = result.elo_change;
-            document.getElementById('eloDelta').textContent = (delta >= 0 ? '+' : '') + delta;
-            document.getElementById('eloDelta').className = delta >= 0 ? 'elo-delta-pos' : 'elo-delta-neg';
-            document.getElementById('eloAfterVal').textContent = result.elo_after;
-            document.getElementById('eloCardDiff').textContent = 'Card difficulty: ' + result.card_difficulty;
+            const delta=result.elo_change;
+            document.getElementById('eloDelta').textContent=(delta>=0?'+':'')+delta;
+            document.getElementById('eloDelta').className=delta>=0?'elo-delta-pos':'elo-delta-neg';
+            document.getElementById('eloAfterVal').textContent=result.elo_after;
+            document.getElementById('eloCardDiff').textContent='Card difficulty: '+result.card_difficulty;
             updateEloButton(result.elo_after);
         } else {
-            // Anonymous — show result without ELO change, prompt to sign up
-            document.getElementById('eloDelta').textContent = correct ? 'Correct!' : 'Wrong!';
-            document.getElementById('eloDelta').className = correct ? 'elo-delta-pos' : 'elo-delta-neg';
-            document.getElementById('eloAfterVal').textContent = '—';
-            document.getElementById('eloCardDiff').textContent = 'Sign in to track your ELO rating';
-            // Save for after auth
-            pendingEloRound = {player_name, sport, guesses_used, correct};
+            document.getElementById('eloDelta').textContent=correct?'Correct!':'Wrong!';
+            document.getElementById('eloDelta').className=correct?'elo-delta-pos':'elo-delta-neg';
+            document.getElementById('eloAfterVal').textContent='—';
+            document.getElementById('eloCardDiff').textContent='Sign in to track your ELO';
+            pendingEloRound={player_name,sport,guesses_used,correct};
         }
         document.getElementById('eloOverlay').classList.add('show');
     }
-
     function closeEloOverlay() {
         document.getElementById('eloOverlay').classList.remove('show');
-        // If anonymous and a round is pending, show auth modal before next card
-        if (pendingEloRound && !eloName) {
-            showAuthModal();
-        } else {
-            loadPlayer();
-        }
+        if (pendingEloRound&&!eloName) showAuthModal();
+        else loadPlayer();
     }
-
     async function openEloDrawer() {
         document.getElementById('eloDrawer').classList.add('open');
-        const sport = eloSport();
+        const sport=eloSport();
         try {
-            const res = await fetch('/elo/leaderboard?sport=' + sport);
-            const rows = await res.json();
-            const rc = i => i===0?'rank-gold':i===1?'rank-silver':i===2?'rank-bronze':'';
-            document.getElementById('eloLbBody').innerHTML = rows.map((r,i) => {
-                const isYou = eloName && r.name.toLowerCase()===eloName.toLowerCase();
-                return '<tr class="'+(isYou?'you-row':'')+'"><td class="rank-cell '+rc(i)+'">'
-                    +r.rank+'</td><td class="name-cell">'+escHtmlElo(r.name)
-                    +(isYou?' <span style="font-size:10px;color:#52525b">(you)</span>':'')
-                    +'</td><td style="text-align:center;color:#52525b">'+r.games
-                    +'</td><td class="elo-cell">'+r.elo+'</td></tr>';
+            const res=await fetch('/elo/leaderboard?sport='+sport);
+            const rows=await res.json();
+            const rc=i=>i===0?'rank-gold':i===1?'rank-silver':i===2?'rank-bronze':'';
+            document.getElementById('eloLbBody').innerHTML=rows.map((r,i)=>{
+                const isYou=eloName&&r.name.toLowerCase()===eloName.toLowerCase();
+                return '<tr class="'+(isYou?'you-row':'')+'"><td class="rank-cell '+rc(i)+'">'+r.rank+'</td><td class="name-cell">'+escHtmlElo(r.name)+(isYou?' <span style="font-size:10px;color:#52525b">(you)</span>':'')+'</td><td style="text-align:center;color:#52525b">'+r.games+'</td><td class="elo-cell">'+r.elo+'</td></tr>';
             }).join('');
-        } catch(e) {}
+        } catch(e){}
         if (eloName) {
             try {
-                const res = await fetch('/elo/user?name='+encodeURIComponent(eloName)+'&sport='+sport);
-                if (res.ok) {
-                    const d = await res.json();
-                    document.getElementById('eloYourRank').innerHTML =
-                        '<span style="color:#e4e4e7;font-weight:700">'+escHtmlElo(eloName)+'</span>'
-                        +' &nbsp;·&nbsp; Rank <b style="color:#3b82f6">#'+d.rank+'</b>'
-                        +' &nbsp;·&nbsp; ELO <b style="color:#3b82f6">'+d.elo+'</b>'
-                        +' &nbsp;·&nbsp; '+d.correct+'/'+d.games+' correct';
-                }
-            } catch(e) {}
+                const res=await fetch('/elo/user?name='+encodeURIComponent(eloName)+'&sport='+sport);
+                if (res.ok){const d=await res.json();document.getElementById('eloYourRank').innerHTML='<span style="color:#e4e4e7;font-weight:700">'+escHtmlElo(eloName)+'</span> &nbsp;·&nbsp; Rank <b style="color:#3b82f6">#'+d.rank+'</b> &nbsp;·&nbsp; ELO <b style="color:#3b82f6">'+d.elo+'</b> &nbsp;·&nbsp; '+d.correct+'/'+d.games+' correct';}
+            } catch(e){}
         }
     }
-
-    function closeEloDrawer() { document.getElementById('eloDrawer').classList.remove('open'); }
-    document.getElementById('eloDrawer').addEventListener('click', e => {
-        if (e.target === document.getElementById('eloDrawer')) closeEloDrawer();
-    });
-
-    // Don't block page load with auth modal — fetch existing rating silently
-
-    function onEloButtonClick() {
-        if (eloName && eloPin) openEloDrawer();
-        else showAuthModal();
+    function closeEloDrawer(){document.getElementById('eloDrawer').classList.remove('open');}
+    document.getElementById('eloDrawer').addEventListener('click',e=>{if(e.target===document.getElementById('eloDrawer'))closeEloDrawer();});
+    function onEloButtonClick(){if(eloName&&eloPin)openEloDrawer();else showAuthModal();}
+    function updateEloButton(elo){
+        const btn=document.getElementById('eloDisplay');
+        if(eloName&&eloPin){btn.textContent='⚡ '+elo;btn.title='ELO Rankings';}
+        else{btn.textContent='Sign In';btn.title='Sign in to track your ELO';}
     }
-
-    function updateEloButton(elo) {
-        const btn = document.getElementById('eloDisplay');
-        if (eloName && eloPin) {
-            btn.textContent = '⚡ ' + elo;
-            btn.title = 'ELO Rankings';
-        } else {
-            btn.textContent = 'Sign In';
-            btn.title = 'Sign in to track your ELO';
-        }
-    }
-
     updateEloButton('—');
     fetchEloUser();
 
 </script>
 </body>
+</html>
