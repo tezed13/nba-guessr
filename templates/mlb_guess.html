@@ -22,16 +22,9 @@
         #guessPanel { flex-shrink:0; border-top:1px solid #1c1c1f; padding:12px 0 16px; background:#0d0d0f; }
 
         /* Leaderboard drawer */
-        .side-drawer { position:fixed; inset:0; z-index:50; display:flex; align-items:flex-end; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); opacity:0; pointer-events:none; transition:opacity 0.25s; }
-        .side-drawer.open { opacity:1; pointer-events:all; }
         .drawer-content { width:100%; max-width:680px; margin:0 auto; background:#111113; border:1px solid #27272a; border-radius:20px 20px 0 0; padding:24px 20px 36px; transform:translateY(100%); transition:transform 0.28s cubic-bezier(.4,0,.2,1); max-height:85dvh; overflow-y:auto; }
         .side-drawer.open .drawer-content { transform:translateY(0); }
 
-        .lb-tabs { display:flex; gap:6px; margin-bottom:16px; overflow-x:auto; scrollbar-width:none; }
-        .lb-tabs::-webkit-scrollbar { display:none; }
-        .lb-tab { flex-shrink:0; padding:6px 14px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; border:1.5px solid #27272a; background:transparent; color:#52525b; font-family:inherit; transition:all 0.15s; }
-        .lb-tab.active { background:#16a34a; border-color:#16a34a; color:#fff; }
-        .lb-tab:hover:not(.active) { border-color:#3f3f46; color:#a1a1aa; }
         .lb-table { width:100%; border-collapse:collapse; }
         .lb-table thead th { background:#18181b; color:#52525b; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:9px 12px; border-bottom:1px solid #27272a; text-align:left; }
         .lb-table tbody tr { border-bottom:1px solid #1c1c1f; }
@@ -138,18 +131,38 @@
             background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);}
         .name-modal-card{background:#111113;border:1px solid #27272a;border-radius:16px;padding:28px 24px;width:320px;text-align:center;}
 
+        /* ELO */
+        #eloOverlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .3s;}
+        #eloOverlay.show{opacity:1;pointer-events:all;}
+        .elo-card{background:#111113;border:1px solid #27272a;border-radius:20px;padding:32px 40px;text-align:center;min-width:260px;}
+        .elo-delta-pos{font-size:48px;font-weight:900;color:#22c55e;}
+        .elo-delta-neg{font-size:48px;font-weight:900;color:#ef4444;}
+        .elo-rating{font-size:14px;color:#71717a;margin-top:8px;}
+        #eloDrawer{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s;}
+        #eloDrawer.open{opacity:1;pointer-events:all;}
+        #eloDrawer .drawer-content{width:100%;max-width:680px;margin:0 auto;background:#111113;border:1px solid #27272a;border-radius:20px 20px 0 0;padding:24px 20px 36px;transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);max-height:85dvh;overflow-y:auto;}
+        #eloDrawer.open .drawer-content{transform:translateY(0);}
+        .elo-table{width:100%;border-collapse:collapse;}
+        .elo-table thead th{background:#18181b;color:#52525b;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:9px 12px;border-bottom:1px solid #27272a;text-align:left;}
+        .elo-table thead th:last-child{text-align:right;}
+        .elo-table tbody tr{border-bottom:1px solid #1c1c1f;}
+        .elo-table tbody tr:last-child{border-bottom:none;}
+        .elo-table tbody td{padding:10px 12px;font-size:13px;color:#a1a1aa;}
+        .elo-table tbody td.elo-rank{color:#52525b;font-weight:700;width:32px;}
+        .elo-table tbody td.elo-name{color:#e4e4e7;font-weight:700;}
+        .elo-table tbody td.elo-score{color:#3b82f6;font-weight:800;text-align:right;font-size:15px;}
+        .elo-table tbody tr.elo-you td{color:#fbbf24;}
+        .elo-table tbody tr.elo-you td.elo-score{color:#fbbf24;}
+        .rg{color:#fbbf24!important;}.rs{color:#a1a1aa!important;}.rb{color:#b45309!important;}
+        #authModal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);}
+        .auth-card{background:#111113;border:1px solid #27272a;border-radius:16px;padding:28px 24px;width:320px;text-align:center;}
+
     </style>
 </head>
 <body>
     <input type="hidden" id="startSeason" value="{{ start_season }}">
     <input type="hidden" id="endSeason"   value="{{ end_season }}">
     <input type="hidden" id="types"       value="{{ types }}">
-            <div id="nameEntrySection">
-                <p style="font-size:11px;font-weight:700;color:#52525b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Enter your name to save your score</p>
-                <div style="display:flex;gap:8px">
-                    <input type="text" id="lbNameInput" class="dark-input" placeholder="Your name..." maxlength="20" style="flex:1;font-size:13px;padding:10px 12px">
-                    <button class="btn btn-green" style="padding:10px 16px;font-size:13px" onclick="saveScore()">Save</button>
-                </div>
             </div>
             <div class="lb-tabs" id="lbTabs"></div>
             <div class="lb-meta" id="lbMeta"></div>
@@ -172,7 +185,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px">
                 <div class="streak-pill">🔥 <span id="streakVal">0</span></div>
-                <button class="btn-icon" onclick="onEloButtonClick()" id="eloDisplay" title="Sign in / ELO" style="min-width:64px">Sign In</button>
+                <button class="btn-icon" onclick="eloName&&eloPin?openEloDrawer():document.getElementById('authModal').style.display='flex'" id="eloBtn" title="Sign in / ELO" style="min-width:64px">Sign In</button>
             </div>
         </div>
 
@@ -261,24 +274,61 @@
         </div>
     </div>
 
+
+    <div id="eloOverlay">
+        <div class="elo-card">
+            <div id="eloIcon" style="font-size:36px;margin-bottom:8px"></div>
+            <div id="eloDelta" class="elo-delta-pos"></div>
+            <div class="elo-rating">Rating: <span id="eloAfter">—</span></div>
+            <div id="eloCard" style="font-size:11px;color:#3f3f46;margin-top:6px"></div>
+            <button onclick="closeEloOverlay()" class="btn btn-blue" style="margin-top:20px;padding:10px 28px">Next Player →</button>
+        </div>
+    </div>
+
+    <div id="eloDrawer">
+        <div class="drawer-content">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+                <p style="font-size:16px;font-weight:800">📊 ELO Rankings</p>
+                <button class="btn-icon" onclick="closeEloDrawer()">✕</button>
+            </div>
+            <div id="eloYourRank" style="background:#18181b;border:1px solid #27272a;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#71717a">Sign in to see your rank</div>
+            <div style="border-radius:12px;border:1px solid #1c1c1f;overflow:hidden">
+                <table class="elo-table">
+                    <thead><tr><th>#</th><th>Name</th><th>Games</th><th style="text-align:right">ELO</th></tr></thead>
+                    <tbody id="eloBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="authModal">
+        <div class="auth-card" style="width:340px">
+            <div style="display:flex;margin-bottom:20px;border:1px solid #27272a;border-radius:10px;overflow:hidden">
+                <button id="tabReg" onclick="switchTab(1)" style="flex:1;padding:9px;font-size:13px;font-weight:700;background:#3b82f6;color:#fff;border:none;cursor:pointer;font-family:inherit">New Player</button>
+                <button id="tabLog" onclick="switchTab(0)" style="flex:1;padding:9px;font-size:13px;font-weight:700;background:transparent;color:#71717a;border:none;cursor:pointer;font-family:inherit">Returning</button>
+            </div>
+            <div id="pReg">
+                <p style="font-size:15px;font-weight:800;margin-bottom:4px">Create your profile</p>
+                <p style="font-size:12px;color:#71717a;margin-bottom:16px">Pick a name and 4-digit PIN</p>
+                <input id="rName" class="dark-input" placeholder="Your name…" maxlength="30" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:10px;box-sizing:border-box">
+                <input id="rPin" type="password" class="dark-input" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:10px;box-sizing:border-box">
+                <input id="rPin2" type="password" class="dark-input" placeholder="Confirm PIN" maxlength="4" inputmode="numeric" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:14px;box-sizing:border-box">
+                <div id="rErr" style="font-size:12px;color:#ef4444;margin-bottom:10px;min-height:16px"></div>
+                <button onclick="doRegister()" class="btn btn-blue" style="width:100%;padding:11px">Create Profile</button>
+            </div>
+            <div id="pLog" style="display:none">
+                <p style="font-size:15px;font-weight:800;margin-bottom:4px">Welcome back</p>
+                <p style="font-size:12px;color:#71717a;margin-bottom:16px">Enter your name and PIN</p>
+                <input id="lName" class="dark-input" placeholder="Your name…" maxlength="30" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:10px;box-sizing:border-box">
+                <input id="lPin" type="password" class="dark-input" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" style="width:100%;font-size:14px;padding:11px 14px;margin-bottom:14px;box-sizing:border-box">
+                <div id="lErr" style="font-size:12px;color:#ef4444;margin-bottom:10px;min-height:16px"></div>
+                <button onclick="doLogin()" class="btn btn-blue" style="width:100%;padding:11px">Log In</button>
+            </div>
+            <button onclick="document.getElementById('authModal').style.display='none'" style="margin-top:14px;width:100%;padding:8px;background:transparent;border:none;color:#3f3f46;font-size:12px;cursor:pointer;font-family:inherit">Play without saving rating</button>
+        </div>
+    </div>
+
     <script>
-    // ══════════════════════════════════════════════════════════════
-    // LEADERBOARD
-    // ══════════════════════════════════════════════════════════════
-
-    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-        catch(e) { console.warn('LB save failed', e); }
-
-    const lbKnownKeys = new Set();
-
-        if (pendingScoreKey) { await             showEloOverlay(currentPlayerName, 'mlb', guessesUsed, true);
-            return;
-        renderLB(lbCategoryKey(activeSeason.start, activeSeason.end, activeTypes, maxGuesses));
-    }
-    document.getElementById('lbDrawer').addEventListener('click', e => { if(e.target===document.getElementById('lbDrawer')) closeLB(); });
-
-
     // ══════════════════════════════════════════════════════════════
     // GAME STATE
     // ══════════════════════════════════════════════════════════════
@@ -493,8 +543,6 @@
             document.getElementById('playerNameDisplay').textContent=currentPlayerName;
             document.getElementById('playerNameDisplay').style.color='#4ade80';
             showBanner(`✓ ${currentPlayerName} — Streak: ${streak} (Best: ${bestStreak})`,'ok');
-                        showEloOverlay(currentPlayerName, 'mlb', guessesUsed, true);
-            return;
             endRound(true);
         } else {
             const left=maxGuesses-guessesUsed;
@@ -713,12 +761,135 @@
     document.getElementById('eloDrawer').addEventListener('click',e=>{if(e.target===document.getElementById('eloDrawer'))closeEloDrawer();});
     function onEloButtonClick(){if(eloName&&eloPin)openEloDrawer();else showAuthModal();}
     function updateEloButton(elo){
-        const btn=document.getElementById('eloDisplay');
+        const btn=document.getElementById('eloBtn');
         if(eloName&&eloPin){btn.textContent='⚡ '+elo;btn.title='ELO Rankings';}
         else{btn.textContent='Sign In';btn.title='Sign in to track your ELO';}
     }
     updateEloButton('—');
     fetchEloUser();
+
+
+    // ── ELO ──────────────────────────────────────────────────────
+    const _EN = 'guessr_elo_name', _EP = 'guessr_elo_pin';
+    let eloName = localStorage.getItem(_EN)||'', eloPin = localStorage.getItem(_EP)||'';
+    let _pending = null;
+
+    const _sport = () => { const p=location.pathname; return p.includes('nfl')?'nfl':p.includes('mlb')?'mlb':'nba'; };
+    const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    function switchTab(reg) {
+        document.getElementById('pReg').style.display = reg?'':'none';
+        document.getElementById('pLog').style.display = reg?'none':'';
+        document.getElementById('tabReg').style.cssText += reg?';background:#3b82f6;color:#fff':';background:transparent;color:#71717a';
+        document.getElementById('tabLog').style.cssText += reg?';background:transparent;color:#71717a':';background:#3b82f6;color:#fff';
+    }
+
+    function _eloBtn(elo) {
+        const b = document.getElementById('eloBtn');
+        if (!b) return;
+        b.textContent = (eloName && eloPin) ? '⚡ '+elo : 'Sign In';
+    }
+
+    async function doRegister() {
+        const name=document.getElementById('rName').value.trim();
+        const pin=document.getElementById('rPin').value.trim();
+        const pin2=document.getElementById('rPin2').value.trim();
+        const err = e => document.getElementById('rErr').textContent = e;
+        err('');
+        if (!name) return err('Please enter a name');
+        if (!/^[0-9]{4}$/.test(pin)) return err('PIN must be exactly 4 digits');
+        if (pin!==pin2) return err('PINs do not match');
+        try {
+            const r = await fetch('/elo/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,pin,sport:_sport()})});
+            const d = await r.json();
+            if (!r.ok) return err(d.error||'Registration failed');
+            _setAuth(name, pin, d.elo);
+        } catch(e) { err('Network error'); }
+    }
+
+    async function doLogin() {
+        const name=document.getElementById('lName').value.trim();
+        const pin=document.getElementById('lPin').value.trim();
+        const err = e => document.getElementById('lErr').textContent = e;
+        err('');
+        if (!name||!pin) return err('Please fill in all fields');
+        try {
+            const r = await fetch('/elo/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,pin,sport:_sport()})});
+            const d = await r.json();
+            if (!r.ok) return err(d.error||'Login failed');
+            _setAuth(name, pin, d.elo);
+        } catch(e) { err('Network error'); }
+    }
+
+    function _setAuth(name, pin, elo) {
+        eloName=name; eloPin=pin;
+        localStorage.setItem(_EN,name); localStorage.setItem(_EP,pin);
+        document.getElementById('authModal').style.display='none';
+        _eloBtn(elo);
+        if (_pending) { const p=_pending; _pending=null; _showElo(p[0],p[1],p[2],p[3]); }
+    }
+
+    async function _showElo(player, sport, guesses, correct) {
+        let result = null;
+        if (eloName && eloPin) {
+            try {
+                const r = await fetch('/elo/result',{method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({name:eloName,pin:eloPin,sport,player_name:player,guesses_used:guesses,correct})});
+                if (r.status===401) { eloName='';eloPin='';localStorage.removeItem(_EN);localStorage.removeItem(_EP); }
+                else if (r.ok) result = await r.json();
+            } catch(e){}
+        }
+        document.getElementById('eloIcon').textContent  = correct ? '✅' : '❌';
+        if (result) {
+            const d=result.elo_change;
+            document.getElementById('eloDelta').textContent = (d>=0?'+':'')+d;
+            document.getElementById('eloDelta').className  = d>=0?'elo-delta-pos':'elo-delta-neg';
+            document.getElementById('eloAfter').textContent = result.elo_after;
+            document.getElementById('eloCard').textContent  = 'Card difficulty: '+result.card_difficulty;
+            _eloBtn(result.elo_after);
+        } else {
+            document.getElementById('eloDelta').textContent = correct?'Correct!':'Wrong!';
+            document.getElementById('eloDelta').className   = correct?'elo-delta-pos':'elo-delta-neg';
+            document.getElementById('eloAfter').textContent = '—';
+            document.getElementById('eloCard').textContent  = eloName?'':'Sign in to track your ELO';
+            _pending = [player,sport,guesses,correct];
+        }
+        document.getElementById('eloOverlay').classList.add('show');
+    }
+
+    function closeEloOverlay() {
+        document.getElementById('eloOverlay').classList.remove('show');
+        if (_pending && !eloName) document.getElementById('authModal').style.display='flex';
+        else { _pending=null; loadPlayer(); }
+    }
+
+    async function openEloDrawer() {
+        document.getElementById('eloDrawer').classList.add('open');
+        const sport=_sport();
+        try {
+            const rows=(await (await fetch('/elo/leaderboard?sport='+sport)).json());
+            const rc=i=>i===0?'rg':i===1?'rs':i===2?'rb':'';
+            document.getElementById('eloBody').innerHTML = rows.map((r,i)=>{
+                const you=eloName&&r.name.toLowerCase()===eloName.toLowerCase();
+                return `<tr class="${you?'elo-you':''}"><td class="elo-rank ${rc(i)}">${r.rank}</td><td class="elo-name">${_esc(r.name)}${you?' <span style="font-size:10px;color:#52525b">(you)</span>':''}</td><td style="text-align:center;color:#52525b">${r.games}</td><td class="elo-score">${r.elo}</td></tr>`;
+            }).join('');
+        } catch(e){}
+        if (eloName) {
+            try {
+                const d=await (await fetch('/elo/user?name='+encodeURIComponent(eloName)+'&sport='+sport)).json();
+                document.getElementById('eloYourRank').innerHTML = `<span style="color:#e4e4e7;font-weight:700">${_esc(eloName)}</span> &nbsp;·&nbsp; Rank <b style="color:#3b82f6">#${d.rank}</b> &nbsp;·&nbsp; ELO <b style="color:#3b82f6">${d.elo}</b> &nbsp;·&nbsp; ${d.correct}/${d.games} correct`;
+            } catch(e){}
+        }
+    }
+
+    function closeEloDrawer() { document.getElementById('eloDrawer').classList.remove('open'); }
+    document.getElementById('eloDrawer').addEventListener('click', e => { if(e.target===document.getElementById('eloDrawer')) closeEloDrawer(); });
+
+    // Init
+    _eloBtn('—');
+    if (eloName && eloPin) {
+        fetch('/elo/user?name='+encodeURIComponent(eloName)+'&sport='+_sport()).then(r=>r.ok?r.json():null).then(d=>{ if(d) _eloBtn(d.elo); }).catch(()=>{});
+    }
 
 </script>
 </body>
